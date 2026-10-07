@@ -1,6 +1,7 @@
 # Builds the TDEI → R5 walkshed server image (docker/Dockerfile).
 #
-# Pull requests only build, to check the image still builds. Pushes to dev and version tags also publish to the
+# Pull requests that touch what goes into the image, other than the Java source, build it without publishing, to
+# check it still builds. (Java CI already compiles and tests the source.) Pushes to dev and version tags publish to the
 # Azure Container Registry that the TDEI services use, tagged with the branch or version and with the full commit
 # hash. The container apps in the tdei-r5 resource group pull from that registry.
 #
@@ -17,6 +18,14 @@ on:
     tags: [ 'v*' ]
   pull_request:
     branches: [ dev ]
+    # Everything the Dockerfile copies in besides the built jar, and what decides how it is built.
+    paths:
+      - 'docker/**'
+      - 'osw-tools/profiles/**'
+      - 'src/main/resources/osw-demo/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - '.github/workflows/docker-image.yml'
   workflow_dispatch:
 
 jobs:
@@ -66,4 +75,6 @@ jobs:
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
-        cache-to: type=gha,mode=max
+        # A pull request can read the layers cached by builds of dev, but nothing else can read the ones it writes,
+        # so writing them would be wasted time.
+        cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=max' || '' }}

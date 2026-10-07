@@ -13,20 +13,15 @@ info:
     - **The R5 demo server run directly** (`gradle runOswDemo --args="--osw <dataset>"`). One dataset, no prefix and
       no token.
 
-    Choose which under **Servers**.
+    This page talks to whichever of the two it was loaded from, shown under **Servers**.
 
     **Walksheds-compatible API** (`/api/v1`). A stand-in for the routing calls of the TDEI Walksheds service, as used
     by the TDEI quality reports. Point `WALKSHEDS_URL` at `<server>/api/v1`. Costs are those of the server's
-    Walksheds profile (by default `ws-prod`, the production Walksheds cost function) at 1.3 m/s. Differences from
-    Walksheds:
+    Walksheds profile (by default `ws-prod`, the production Walksheds cost function) at 1.3 m/s.
 
-    - `reverse` is not implemented and returns 501.
-    - `fanOut` returns 501 if the server's profile has no fan mode.
-    - Points snap to the nearest edge within 50 m that the traveller can use in at least one direction.
-    - Times are R5's, with each edge rounded up to a whole second.
-    - Edge features carry the OSW properties (with `:` in keys replaced by `_`), but not Walksheds' `curbs`,
-      `lowered_curbs` and `flush_curbs` counts, and `_u` / `_v` have no elevation part.
-    - When no route or start point is found, the response is still 200, with `code` saying why.
+    R5 does not match Walksheds in every respect, and some of the differences are deliberate.
+    [DIFFERENCES.md](https://github.com/TaskarCenterAtUW/r5/blob/dev/osw-tools/DIFFERENCES.md) lists them, with
+    how closely the two agree and the evidence for each.
 
     **Demo map API** (`/api`). What the map page uses. With the container these need a token unless it was started
     with `OPEN_DEBUG_UI=1`.
@@ -344,7 +339,7 @@ components:
       in: query
       description: |
         Fan mode: cost streets like footways, by length and incline with no street penalty, whatever
-        `streetAvoidance` says. 501 if the server's profile has no fan mode.
+        `streetAvoidance` says. This lets a route use streets to bridge gaps between sidewalks.
       schema: {type: string, enum: ["0", "1", "true", "false", "True", "False"]}
       example: "False"
     reverse:
@@ -362,7 +357,7 @@ components:
           schema: {$ref: "#/components/schemas/Error"}
           example: {error: lat is required.}
     NotImplemented:
-      description: The request turns on something this server does not do (`reverse`, or `fanOut` without a fan-mode profile)
+      description: The request turns on `reverse`, which this server does not implement
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}

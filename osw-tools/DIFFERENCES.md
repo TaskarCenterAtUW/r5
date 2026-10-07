@@ -24,6 +24,39 @@ sample of 4,000 of those routes.
 These numbers come from one dataset with no road edges. Street costs, fan mode and the rules listed under
 [Not implemented](#not-implemented) have not been compared with Walksheds output at all.
 
+## Where the differences come from
+
+Every cause found so far, with what was done about it. **Fixed** means R5 was changed and the difference is gone.
+The sections below describe each cause.
+
+### Fixed
+
+| Cause | Status | Effect of the fix, on the same sample |
+|---|---|---|
+| R5 attached a point to the nearest edge even if the traveller could not use it, and only within 30 m | **Fixed** | Routes Walksheds finds and R5 does not: 485 → 92 of 3,000 |
+| R5's profile ignored incline on crossings and never used steps | **Fixed** | Routes on which the two disagree about a route existing: 128 → 83 of 4,000 |
+| R5 required a lowered or flush kerb at both ends of a crossing for it to have curb ramps | **Fixed** | Wheelchair routes only Walksheds finds: 54 → 5 |
+| R5 joined edges by node ID, leaving steps and other edges that share only a position unconnected | **Fixed** | Pedestrian routes only Walksheds finds: 24 → 0. Routes over 25% different in length: 58 → 36 |
+
+### Remaining
+
+Of the 3,493 sampled routes that both engines find, 537 (15.4%) still differ in length by more than 2%. To see why,
+each engine's path was costed under both engines' rules: Walksheds' (incline as mapped, unrounded) and R5's (incline
+reversed when walked backwards, each edge rounded up). Those two cost models reproduce the engines' own reported
+costs to within 0.1%.
+
+| Cause | Routes | Share of all | Status |
+|---|---|---|---|
+| The route starts or ends at a different point, more than 5 m away | 269 | 7.7% | **Open.** Known cause: the engines choose the edge to attach to differently. Not planned. |
+| Costing: each engine's path is the cheaper one under its own rules | 200 | 5.7% | **Left as is.** Incline direction, rounding and missing inclines. R5's incline handling is correct. |
+| R5's path is cheaper by Walksheds' own costs, yet Walksheds did not take it | 42 | 1.2% | **Unexplained.** Something in Walksheds or Unweaver. |
+| Walksheds' path is cheaper by R5's own costs, yet R5 did not take it | 22 | 0.6% | **Unexplained.** Should not happen; to be investigated. |
+| Walksheds walks an edge R5 has closed | 4 | 0.1% | **Open.** Short steep edges; not investigated. |
+
+So 98% of routes either match or differ for a known reason, and 1.9% differ for a reason not yet understood. The
+unexplained routes on Walksheds' side are the more severe: 12 of the 42 are more than 25% off, against none of the 22
+on R5's side, 18 of which are within 5%.
+
 ## Differences in how a route is costed
 
 ### Walksheds does not reverse an edge's incline when it is walked backwards
@@ -89,9 +122,9 @@ to node positions in testing, and matters little for real points of interest.
 
 ### Walksheds sometimes misses a cheaper path
 
-In 17 of the 51 sampled routes that differ by more than 50 m with the same start and end, R5's path is cheaper
-even by Walksheds' own cost function, so Walksheds could have taken it. In one, Walksheds walks 104 m where a 31 m
-path exists along edges it already uses. Not investigated; these look like Walksheds or Unweaver behaviour rather
+In 42 of the 3,493 sampled routes that both engines find, R5's path is cheaper even by Walksheds' own cost
+function, so Walksheds could have taken it. In one, Walksheds walks 104 m where a 31 m path exists along edges it
+already uses. Not investigated; these look like Walksheds or Unweaver behaviour rather
 than something to copy. One known Unweaver difference of this kind: where two OSW edges join the same pair of nodes,
 Unweaver keeps one of them and R5 keeps both.
 
@@ -115,8 +148,8 @@ Unweaver keeps one of them and R5 keeps both.
 
 ## Differences that were found and closed
 
-These once made R5 differ and no longer do. They are listed because each is a rule R5 follows only because
-Walksheds does.
+These once made R5 differ and no longer do; their effect is in the [Fixed](#fixed) table above. They are listed
+here as rules, because each is something R5 does only because Walksheds does.
 
 | Rule | What Walksheds does, and R5 now does too |
 |---|---|

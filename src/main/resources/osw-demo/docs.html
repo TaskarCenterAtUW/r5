@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TDEI R5 walkshed server: API</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css">
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
+  <script>
+    // This page is served three ways, and the API it describes sits somewhere different in each:
+    //   /docs                    by the container's proxy: the API is under /{datasetId}, which the reader fills in
+    //   /{datasetId}/docs.html   through the proxy, by a dataset's R5 instance: the API is under that dataset ID
+    //   /docs.html               by an R5 demo server run directly: the API is at the root
+    const CONTAINER = '/{datasetId}';
+    const viaDataset = location.pathname.match(/^\/([^/]+)\/docs\.html$/);
+    const ui = SwaggerUIBundle({
+      url: 'openapi.yaml',
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      persistAuthorization: true,
+      onComplete: () => {
+        if (viaDataset) {
+          ui.oas3Actions.setSelectedServer(CONTAINER);
+          ui.oas3Actions.setServerVariableValue({server: CONTAINER, key: 'datasetId', val: viaDataset[1]});
+        } else if (location.pathname !== '/docs') {
+          ui.oas3Actions.setSelectedServer('/');
+        }
+      }
+    });
+  </script>
+</body>
+</html>

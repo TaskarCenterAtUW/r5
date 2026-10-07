@@ -1,0 +1,627 @@
+openapi: 3.0.3
+info:
+  title: TDEI R5 walkshed server
+  version: "1"
+  description: |
+    Pedestrian routing over OpenSidewalks (OSW) data with R5.
+
+    There are two ways to reach this API, and the paths below are the same in both:
+
+    - **The container** (`docker/`). A proxy in front of one R5 instance per TDEI dataset. Every path is prefixed with
+      the TDEI dataset ID, and every request needs a TDEI token. The first request for a dataset downloads it from
+      TDEI and starts R5, answering 503 with `Retry-After` until it is ready.
+    - **The R5 demo server run directly** (`gradle runOswDemo --args="--osw <dataset>"`). One dataset, no prefix and
+      no token.
+
+    Choose which under **Servers**.
+
+    **Walksheds-compatible API** (`/api/v1`). A stand-in for the routing calls of the TDEI Walksheds service, as used
+    by the TDEI quality reports. Point `WALKSHEDS_URL` at `<server>/api/v1`. Costs are those of the server's
+    Walksheds profile (by default `ws-prod`, the production Walksheds cost function) at 1.3 m/s. Differences from
+    Walksheds:
+
+    - `reverse` is not implemented and returns 501.
+    - `fanOut` returns 501 if the server's profile has no fan mode.
+    - Points snap to the nearest edge within 50 m that the traveller can use in at least one direction.
+    - Times are R5's, with each edge rounded up to a whole second.
+    - Edge features carry the OSW properties (with `:` in keys replaced by `_`), but not Walksheds' `curbs`,
+      `lowered_curbs` and `flush_curbs` counts, and `_u` / `_v` have no elevation part.
+    - When no route or start point is found, the response is still 200, with `code` saying why.
+
+    **Demo map API** (`/api`). What the map page uses. With the container these need a token unless it was started
+    with `OPEN_DEBUG_UI=1`.
+
+servers:
+  - url: /{datasetId}
+    description: The container. One R5 instance per TDEI dataset, behind the proxy.
+    variables:
+      datasetId:
+        default: your-tdei-dataset-id
+        description: ID of a TDEI OSW dataset that your token can read
+  - url: /
+    description: The R5 demo server run directly, with the one dataset it was started with.
+
+tags:
+  - name: Router
+    description: Walksheds-compatible. Which dataset is loaded, and whether it is ready.
+  - name: Routing
+    description: Walksheds-compatible. Walksheds (reachable trees) and shortest paths.
+  - name: Demo map
+    description: Used by the map page.
+  - name: Container
+    description: Answered by the proxy itself, at the root rather than under a dataset ID.
+
+security:
+  - tdeiToken: []
+
+paths:
+  /api/v1/router/status:
+    get:
+      tags: [Router]
+      summary: Is the router ready, and for which dataset
+      description: Always reports `ready`. A dataset is loaded when the server starts and cannot change.
+      responses:
+        "200":
+          description: The router's state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [ready]}
+                  dataset_id:
+                    type: string
+                    description: The dataset this server has loaded. With the container, the TDEI dataset ID in the path.
+              example: {status: ready, dataset_id: 54f968ac-d036-401d-9bf3-6d9a804c55f7}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "503": {$ref: "#/components/responses/Loading"}
+
+  /api/v1/router/build:
+    get:
+      tags: [Router]
+      summary: Ask for a dataset to be loaded
+      description: |
+        Succeeds only for the dataset already loaded; this server cannot load another. With the container, request
+        the other dataset under its own ID instead. Other Walksheds parameters (`turbo`, `auth_token`, extensions)
+        are accepted and ignored.
+      parameters:
+        - name: dataset_id
+          in: query
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: The dataset is the one loaded
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Code"}
+              example: {code: Ok}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501":
+          description: A different dataset was asked for
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+
+  /api/v1/router/lock:
+    get:
+      tags: [Router]
+      summary: Lock the router
+      description: Accepted and ignored. Each dataset has its own R5 instance, so there is nothing to lock.
+      responses:
+        "200":
+          description: Always Ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Code"}
+              example: {code: Ok}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /api/v1/router/unlock:
+    get:
+      tags: [Router]
+      summary: Unlock the router
+      description: Accepted and ignored.
+      responses:
+        "200":
+          description: Always Ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Code"}
+              example: {code: Ok}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /api/v1/routing/reachable_tree/custom.json:
+    get:
+      tags: [Routing]
+      summary: Walkshed from a point
+      description: |
+        Everything reachable from a point within a cost limit: the edges walked, cut short where the cost runs out,
+        and the cost at which each node is reached.
+      parameters:
+        - {name: lon, in: query, required: true, schema: {type: number}, example: -122.335}
+        - {name: lat, in: query, required: true, schema: {type: number}, example: 47.61}
+        - name: max_cost
+          in: query
+          required: true
+          description: Cost limit, in seconds of travel. At least 1.
+          schema: {type: number, minimum: 1}
+          example: 600
+        - {$ref: "#/components/parameters/uphill"}
+        - {$ref: "#/components/parameters/downhill"}
+        - {$ref: "#/components/parameters/avoidCurbs"}
+        - {$ref: "#/components/parameters/streetAvoidance"}
+        - {$ref: "#/components/parameters/fanOut"}
+        - {$ref: "#/components/parameters/reverse"}
+      responses:
+        "200":
+          description: The walkshed, or a `code` saying why there is none
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - {$ref: "#/components/schemas/ReachableTree"}
+                  - {$ref: "#/components/schemas/NoResult"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+        "503": {$ref: "#/components/responses/Loading"}
+
+  /api/v1/routing/shortest_path/custom.json:
+    get:
+      tags: [Routing]
+      summary: Shortest path between two points
+      parameters:
+        - {name: lon1, in: query, required: true, schema: {type: number}, example: -122.335}
+        - {name: lat1, in: query, required: true, schema: {type: number}, example: 47.61}
+        - {name: lon2, in: query, required: true, schema: {type: number}, example: -122.332}
+        - {name: lat2, in: query, required: true, schema: {type: number}, example: 47.612}
+        - {$ref: "#/components/parameters/uphill"}
+        - {$ref: "#/components/parameters/downhill"}
+        - {$ref: "#/components/parameters/avoidCurbs"}
+        - {$ref: "#/components/parameters/streetAvoidance"}
+        - {$ref: "#/components/parameters/fanOut"}
+        - {$ref: "#/components/parameters/reverse"}
+      responses:
+        "200":
+          description: The route, or a `code` saying why there is none
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - {$ref: "#/components/schemas/ShortestPath"}
+                  - {$ref: "#/components/schemas/NoResult"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "501": {$ref: "#/components/responses/NotImplemented"}
+        "503": {$ref: "#/components/responses/Loading"}
+
+  /api/info:
+    get:
+      tags: [Demo map]
+      summary: The loaded network, the R5 version, and the available cost profiles
+      responses:
+        "200":
+          description: Server summary
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Info"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /api/network:
+    get:
+      tags: [Demo map]
+      summary: Every edge, with its layer and which directions the traveller can use
+      parameters:
+        - name: profile
+          in: query
+          required: true
+          description: A profile `key` from `/api/info`
+          schema: {type: string}
+          example: ws-prod
+        - name: parameters
+          in: query
+          description: The profile's parameter values, as a JSON object. Those left out take their defaults.
+          schema: {type: string}
+          example: '{"uphill": 0.083, "avoid_curbs": true}'
+      responses:
+        "200":
+          description: A GeoJSON FeatureCollection of LineStrings, one per OSW edge
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: "#/components/schemas/FeatureCollection"}
+                  - description: |
+                      Feature properties: `id` (the OSW edge `_id`), `layer` (the profile layer the edge falls in, or
+                      null if none), `forward` and `backward` (whether it can be walked in each direction).
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /api/walkshed:
+    post:
+      tags: [Demo map]
+      summary: Walkshed from a point, with arrival times along each edge
+      description: |
+        Unlike the Walksheds-compatible call, this snaps to the nearest edge within 300 m whether or not the
+        traveller can use it, takes any profile and walking speed, and cuts edges at whole minutes for colouring.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profile, lat, lon]
+              properties:
+                profile: {type: string, description: A profile `key` from `/api/info`}
+                parameters:
+                  type: object
+                  additionalProperties: true
+                  description: The profile's parameter values. Those left out take their defaults.
+                walkSpeed: {type: number, default: 1.3, description: Speed on level ground in m/s. Above 0, at most 10.}
+                maxMinutes: {type: number, default: 5, description: Time limit. Above 0, at most 120.}
+                lat: {type: number}
+                lon: {type: number}
+            example:
+              profile: ws-prod
+              parameters: {uphill: 0.083, downhill: 0.083, avoid_curbs: true}
+              walkSpeed: 1.3
+              maxMinutes: 5
+              lat: 47.61
+              lon: -122.335
+      responses:
+        "200":
+          description: The walkshed and what produced it
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DemoWalkshed"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /_status:
+    get:
+      tags: [Container]
+      summary: The datasets the proxy has loaded
+      description: Container only. Needs no token.
+      security: []
+      servers:
+        - url: /
+          description: The container's root
+      responses:
+        "200":
+          description: One entry per dataset, keyed by TDEI dataset ID
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    state: {type: string, enum: [starting, running, error]}
+                    port: {type: integer, nullable: true, description: The local port of the dataset's R5 instance}
+                    idle_s: {type: integer, description: Seconds since the last request}
+                    inflight: {type: integer, description: Requests in progress}
+              example:
+                54f968ac-d036-401d-9bf3-6d9a804c55f7: {state: running, port: 48955, idle_s: 12, inflight: 0}
+
+components:
+  securitySchemes:
+    tdeiToken:
+      type: http
+      scheme: bearer
+      description: |
+        A TDEI access token. The container requires one on every request, and checks with TDEI that it can read the
+        dataset. The R5 demo server run directly ignores it.
+
+  parameters:
+    uphill:
+      name: uphill
+      in: query
+      description: Steepest uphill the traveller can manage, as a grade (0.083 is 8.3%). Defaults to the profile's.
+      schema: {type: number, minimum: 0, maximum: 1}
+      example: 0.083
+    downhill:
+      name: downhill
+      in: query
+      description: Steepest downhill, as a positive grade. Defaults to the profile's.
+      schema: {type: number, minimum: 0, maximum: 1}
+      example: 0.083
+    avoidCurbs:
+      name: avoidCurbs
+      in: query
+      description: Use only crossings with curb ramps at both ends, and no steps. `1`/`0` or `true`/`false`.
+      schema: {type: string, enum: ["0", "1", "true", "false", "True", "False"]}
+      example: "1"
+    streetAvoidance:
+      name: streetAvoidance
+      in: query
+      description: How strongly to avoid walking in streets, from 0 (not at all) to 1 (never).
+      schema: {type: number, minimum: 0, maximum: 1}
+      example: 1
+    fanOut:
+      name: fanOut
+      in: query
+      description: |
+        Fan mode: cost streets like footways, by length and incline with no street penalty, whatever
+        `streetAvoidance` says. 501 if the server's profile has no fan mode.
+      schema: {type: string, enum: ["0", "1", "true", "false", "True", "False"]}
+      example: "False"
+    reverse:
+      name: reverse
+      in: query
+      description: Not implemented. Anything but off returns 501.
+      schema: {type: string, enum: ["0", "1", "true", "false", "True", "False"]}
+      example: "0"
+
+  responses:
+    BadRequest:
+      description: A parameter is missing or invalid
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+          example: {error: lat is required.}
+    NotImplemented:
+      description: The request turns on something this server does not do (`reverse`, or `fanOut` without a fan-mode profile)
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+          example: {error: "Not implemented: reverse"}
+    Unauthorized:
+      description: Container only. The token is missing, or TDEI rejected it for this dataset.
+      content:
+        text/plain:
+          schema: {type: string}
+          example: Authorization header with a TDEI token required
+    Loading:
+      description: Container only. The dataset is downloading or R5 is starting; retry after `Retry-After` seconds.
+      headers:
+        Retry-After:
+          schema: {type: integer}
+      content:
+        text/plain:
+          schema: {type: string}
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: {type: string}
+
+    Code:
+      type: object
+      properties:
+        code: {type: string, enum: [Ok]}
+
+    NoResult:
+      type: object
+      description: Nothing to return, and why.
+      properties:
+        code:
+          type: string
+          enum: [InvalidWaypoint, NoPath]
+          description: |
+            `InvalidWaypoint`: a point has no usable edge within 50 m, or nothing is reachable from it.
+            `NoPath`: both points are on the network but no route joins them.
+      example: {code: InvalidWaypoint}
+
+    Point:
+      type: object
+      properties:
+        type: {type: string, enum: [Point]}
+        coordinates:
+          type: array
+          items: {type: number}
+          minItems: 2
+          maxItems: 2
+          description: Longitude, latitude
+
+    LineString:
+      type: object
+      properties:
+        type: {type: string, enum: [LineString]}
+        coordinates:
+          type: array
+          items:
+            type: array
+            items: {type: number}
+
+    PointFeature:
+      type: object
+      properties:
+        type: {type: string, enum: [Feature]}
+        geometry: {$ref: "#/components/schemas/Point"}
+        properties: {type: object}
+
+    FeatureCollection:
+      type: object
+      properties:
+        type: {type: string, enum: [FeatureCollection]}
+        features:
+          type: array
+          items:
+            type: object
+            properties:
+              type: {type: string, enum: [Feature]}
+              geometry: {type: object}
+              properties: {type: object, additionalProperties: true}
+
+    EdgeProperties:
+      type: object
+      description: |
+        An OSW edge's properties. Besides those listed, every other property of the edge is included, as a string,
+        with `:` in its key replaced by `_` (`crossing:markings` becomes `crossing_markings`).
+      additionalProperties: true
+      properties:
+        _id: {type: string, description: The OSW edge ID}
+        _u_id: {type: string, description: The OSW node ID at the edge's start}
+        _v_id: {type: string, description: The OSW node ID at the edge's end}
+        _u: {type: string, description: "The start node's position, as \"lon, lat\""}
+        _v: {type: string, description: "The end node's position, as \"lon, lat\""}
+        length: {type: number, description: Meters. For a partly walked edge, the length walked.}
+        incline: {type: number, description: Grade in the direction walked. Absent if the edge has none.}
+        highway: {type: string}
+        footway: {type: string}
+        surface: {type: string}
+
+    EdgeFeature:
+      type: object
+      properties:
+        type: {type: string, enum: [Feature]}
+        geometry:
+          allOf:
+            - {$ref: "#/components/schemas/LineString"}
+            - description: Runs in the direction walked, which may be the reverse of the OSW edge.
+        properties: {$ref: "#/components/schemas/EdgeProperties"}
+
+    ReachableTree:
+      type: object
+      properties:
+        code: {type: string, enum: [Ok]}
+        status: {type: string, enum: [Ok]}
+        origin:
+          allOf:
+            - {$ref: "#/components/schemas/PointFeature"}
+            - description: Where the walk joins the network, not the requested point.
+        edges:
+          type: object
+          description: The edges reached. One whose far end is out of reach is cut short there.
+          properties:
+            type: {type: string, enum: [FeatureCollection]}
+            features:
+              type: array
+              items: {$ref: "#/components/schemas/EdgeFeature"}
+        node_costs:
+          type: object
+          description: Each node reached, with the cost of reaching it.
+          properties:
+            type: {type: string, enum: [FeatureCollection]}
+            features:
+              type: array
+              items:
+                type: object
+                properties:
+                  type: {type: string, enum: [Feature]}
+                  geometry: {$ref: "#/components/schemas/Point"}
+                  properties:
+                    type: object
+                    properties:
+                      cost: {type: integer, description: Seconds from the origin}
+
+    RouteSegment:
+      type: object
+      properties:
+        type: {type: string, enum: [Feature]}
+        geometry: {$ref: "#/components/schemas/LineString"}
+        properties:
+          allOf:
+            - {$ref: "#/components/schemas/EdgeProperties"}
+            - type: object
+              properties:
+                cost: {type: integer, description: Seconds to walk this part of the route}
+
+    ShortestPath:
+      type: object
+      properties:
+        code: {type: string, enum: [Ok]}
+        origin: {$ref: "#/components/schemas/PointFeature"}
+        destination: {$ref: "#/components/schemas/PointFeature"}
+        waypoints:
+          type: array
+          description: The requested origin and destination.
+          items: {$ref: "#/components/schemas/PointFeature"}
+        routes:
+          type: array
+          description: Always one route.
+          items:
+            type: object
+            properties:
+              distance: {type: number, description: Meters}
+              duration: {type: integer, description: Cost in seconds}
+              total_cost: {type: integer, description: The same as `duration`}
+              geometry: {$ref: "#/components/schemas/LineString"}
+              segments:
+                type: object
+                description: The edges walked, in order. The first and last may be part of an edge.
+                properties:
+                  type: {type: string, enum: [FeatureCollection]}
+                  features:
+                    type: array
+                    items: {$ref: "#/components/schemas/RouteSegment"}
+              legs:
+                type: array
+                description: One leg, holding the same features as `segments`.
+                items:
+                  type: array
+                  items: {$ref: "#/components/schemas/RouteSegment"}
+
+    Info:
+      type: object
+      properties:
+        network:
+          type: object
+          properties:
+            name: {type: string}
+            inputMd5: {type: string, description: MD5 of the OSW input}
+            bounds:
+              type: array
+              items: {type: number}
+              description: West, south, east, north
+            edges: {type: integer, description: Number of OSW edges}
+        r5:
+          type: object
+          properties:
+            version: {type: string}
+            commit: {type: string}
+        profiles:
+          type: array
+          items:
+            type: object
+            properties:
+              key: {type: string, description: The profile's file name without `.json`. Use this in requests.}
+              name: {type: string}
+              description: {type: string}
+              profileId: {type: string, description: MD5 of the profile's definition}
+              parameters:
+                type: object
+                additionalProperties: true
+                description: The parameters the profile takes, with their types, defaults and labels.
+              error: {type: string, description: Present instead of the fields above if the profile file is invalid.}
+
+    DemoWalkshed:
+      type: object
+      properties:
+        provenance:
+          type: object
+          description: What produced the result. Results with the same values are directly comparable.
+          properties:
+            profileName: {type: string}
+            profileId: {type: string}
+            runSpecId: {type: string, description: MD5 of the profile and the parameter values used}
+            parameters: {type: string, description: The parameter values used, as canonical JSON}
+            r5Version: {type: string}
+            r5Commit: {type: string}
+            networkInputMd5: {type: string}
+            baseSpeed: {type: number}
+        origin:
+          type: object
+          properties:
+            lat: {type: number, description: As requested}
+            lon: {type: number, description: As requested}
+            layer: {type: string, nullable: true, description: The profile layer of the edge the walk starts on}
+            snappedLat: {type: number, description: Where the walk joins the network}
+            snappedLon: {type: number}
+            offNetworkMeters: {type: number, description: Distance from the requested point to the network}
+        walkshed:
+          allOf:
+            - {$ref: "#/components/schemas/FeatureCollection"}
+            - description: |
+                LineStrings in the direction walked, cut at whole minutes. Properties: `id` (OSW edge `_id`),
+                `layer`, `t0` and `t1` (minutes at which the two ends are reached), `partial` (true if the time
+                ran out before the end of the edge).
+        stats:
+          type: object
+          properties:
+            reachableMeters: {type: integer}
+            segments: {type: integer}
+            milliseconds: {type: integer, description: Time taken to compute}

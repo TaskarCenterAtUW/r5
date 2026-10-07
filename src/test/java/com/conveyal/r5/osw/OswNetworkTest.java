@@ -77,10 +77,10 @@ public class OswNetworkTest {
         assertFalse(attrs.tags(e102).containsKey("_id"));
         // Steps have a non-numeric incline, treated as unknown.
         assertTrue(Double.isNaN(attrs.incline(forwardEdge("114"))));
-        // Curb ramps from kerb nodes: lowered at both ends, raised at one end, no kerbs.
+        // Curb ramps from kerb nodes: lowered at both ends, raised at one end, and no kerbs (so nothing in the way).
         assertEquals(OswEdgeAttributes.CURB_RAMPS_YES, attrs.curbRamps(forwardEdge("108")));
         assertEquals(OswEdgeAttributes.CURB_RAMPS_NO, attrs.curbRamps(forwardEdge("111")));
-        assertEquals(OswEdgeAttributes.CURB_RAMPS_UNKNOWN, attrs.curbRamps(forwardEdge("112")));
+        assertEquals(OswEdgeAttributes.CURB_RAMPS_YES, attrs.curbRamps(forwardEdge("112")));
     }
 
     @Test

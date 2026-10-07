@@ -79,8 +79,10 @@ class TestPedestrianProfile(unittest.TestCase):
         self.assertEqual(True, prep.curbramps(lowered, {"kerb": "flush"}))
         self.assertEqual(False, prep.curbramps(lowered, raised))
         self.assertEqual(False, prep.curbramps(None, {"kerb": "rolled"}))
-        self.assertIsNone(prep.curbramps(lowered, None))
-        self.assertIsNone(prep.curbramps(None, None))
+        self.assertEqual(False, prep.curbramps(lowered, {"barrier": "kerb"}))  # a kerb with no type given
+        # An end with no kerb node is no obstacle.
+        self.assertEqual(True, prep.curbramps(lowered, None))
+        self.assertEqual(True, prep.curbramps(None, None))
 
     def test_explicit_curb_ramps_parsing_matches_r5(self):
         self.assertEqual(pp.CURB_RAMPS_YES, pp.parse_curb_ramps("1.0"))

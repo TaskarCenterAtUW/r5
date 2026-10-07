@@ -19,38 +19,9 @@ info:
     by the TDEI quality reports. Point `WALKSHEDS_URL` at `<server>/api/v1`. Costs are those of the server's
     Walksheds profile (by default `ws-prod`, the production Walksheds cost function) at 1.3 m/s.
 
-    **How closely it matches Walksheds.** On 4,000 routes that the production Walksheds server returned for a
-    Seattle dataset, R5 and Walksheds agree on 86.3%: both find a route of the same length to within 2%, or neither
-    finds one. On 11.7% they differ for a known reason, and on 2.0% for a reason not yet understood.
-    [DIFFERENCES.md](https://github.com/TaskarCenterAtUW/r5/blob/dev/osw-tools/DIFFERENCES.md) has the evidence for
-    each difference, and R5's tests fail on any that it does not account for.
-
-    *Deliberate differences.* In each of these R5 is the more accurate, and is left that way:
-
-    - **Incline on an edge walked backwards.** R5 reverses the incline: uphill one way is downhill the other.
-      Walksheds costs the edge by its incline as mapped in both directions. This changes costs by a few percent, and
-      which of two nearly equal paths is chosen.
-    - **Where a point attaches to the network.** R5 attaches a point at the nearest place on the ground, on the
-      nearest edge within 50 m that the traveller can use. Walksheds finds the nearest place using longitude and
-      latitude as if they were the same length, which puts it up to about 10 m along the edge, and it gives up if
-      neither of the two nearest edges is usable.
-    - **Rounding.** R5 counts whole seconds and rounds each edge up, so its costs run a little higher: a median of
-      2% on routes of the same length.
-
-    *Not implemented.*
-
-    - `reverse` returns 501.
-    - `fanOut` returns 501 if the server's profile has no fan mode. The default profile has it.
-    - Some rules of the Walksheds cost function: sidewalk scoring, avoiding primary streets, indoor footways'
-      opening hours, transit edges, closed edges, and pathway stairs.
-
-    *In the response.*
-
-    - Edge features carry the OSW properties (with `:` in keys replaced by `_`), but not Walksheds' `curbs`,
-      `lowered_curbs` and `flush_curbs` counts, and `_u` / `_v` have no elevation part.
-    - Nodes at the same position are treated as one node, as in Walksheds, so an edge's `_u_id` or `_v_id` may be the
-      ID of the other node at that position.
-    - When no route or start point is found, the response is still 200, with `code` saying why, as in Walksheds.
+    R5 does not match Walksheds in every respect, and some of the differences are deliberate.
+    [DIFFERENCES.md](https://github.com/TaskarCenterAtUW/r5/blob/dev/osw-tools/DIFFERENCES.md) lists them, with
+    how closely the two agree and the evidence for each.
 
     **Demo map API** (`/api`). What the map page uses. With the container these need a token unless it was started
     with `OPEN_DEBUG_UI=1`.

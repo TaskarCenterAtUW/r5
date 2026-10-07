@@ -255,6 +255,10 @@ WALKSHEDS_URL=http://localhost:8080/api/v1   # in the reports' environment
 | `GET /routing/reachable_tree/custom.json?lon&lat&max_cost…` | `edges` (reached edges, cut short where the cost runs out) and `node_costs`. |
 | `GET /routing/shortest_path/custom.json?lon1&lat1&lon2&lat2…` | `routes[0]` with `distance`, `duration`, `geometry`, `segments` and `legs`; or `code` `NoPath` / `InvalidWaypoint`. |
 
+The full specification is `src/main/resources/osw-demo/openapi.yaml` (OpenAPI 3). The server shows it as a Swagger
+page at `/docs.html`, linked from the bottom of the map page's panel. The container's proxy serves the same page at
+`/docs`, without a token.
+
 `uphill`, `downhill`, `avoidCurbs` and `streetAvoidance` set the `uphill`, `downhill`, `avoid_curbs` and
 `street_avoidance` parameters of the profile named by `--walksheds-profile` (default `ws-prod`), where it has them.
 Costs are at 1.3 m/s.

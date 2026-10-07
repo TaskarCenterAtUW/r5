@@ -28,6 +28,8 @@ RUN apt-get update \
 COPY --from=build /r5.jar /app/r5.jar
 COPY osw-tools/profiles /app/profiles
 COPY docker/tdei_r5_proxy.py /app/tdei_r5_proxy.py
+# the API documentation the proxy serves at /docs
+COPY src/main/resources/osw-demo/docs.html src/main/resources/osw-demo/openapi.yaml /app/docs/
 # host files may be owner-only (600); make /app world-readable for the non-root user
 RUN chmod -R a+rX /app
 
@@ -36,6 +38,7 @@ ENV R5_MAIN_CLASS=com.conveyal.r5.osw.OswDemoServer \
     JAVA_OPTS="-XX:+UseG1GC -XX:G1PeriodicGCInterval=10000 -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 -XX:+ExitOnOutOfMemoryError" \
     LAUNCH_CMD='exec java -Xmx$R5_HEAP $JAVA_OPTS -cp /app/r5.jar $R5_MAIN_CLASS --osw {dir} --port {port} --dataset-id {id} --profiles /app/profiles' \
     LAUNCH_CWD=/app \
+    DOCS_DIR=/app/docs \
     DATA_DIR=/data \
     IDLE_TIMEOUT=1800 \
     MAX_INSTANCES=8 \

@@ -29,12 +29,17 @@ Config (environment variables):
   RETRY_AFTER        seconds suggested in the 503 Retry-After header while loading, default 5
   OPEN_DEBUG_UI      set to 1 to serve the debug map page of a dataset that is already loaded
                      without a token (see below); default off
+  DOCS_DIR           folder holding docs.html and openapi.yaml, served at /docs and /openapi.yaml;
+                     default is the demo page's folder in the R5 checkout this file sits in
 
 With OPEN_DEBUG_UI=1, / lists the loaded datasets, and /{tdei_dataset_id}/ (the map page) and
 the three calls the page makes (api/info, api/network, api/walkshed) need no token. That only
 works for a dataset someone has already loaded with a token: the proxy cannot download one
 without it. It shows that dataset's network to anyone who can reach the proxy, so leave it off
 where datasets are not public. The Walksheds-compatible API under api/v1/ always needs a token.
+
+/docs is the API documentation (Swagger UI) and /openapi.yaml the specification behind it.
+Neither needs a token. Without OPEN_DEBUG_UI, / redirects to /docs.
 
 Responses from the proxy itself:
   401  missing token, or TDEI rejected it for this dataset
@@ -76,8 +81,11 @@ AUTH_CACHE_TTL = float(os.environ.get("AUTH_CACHE_TTL", 600))
 READY_PATH = os.environ.get("READY_PATH", "/")
 RETRY_AFTER = int(os.environ.get("RETRY_AFTER", 5))
 OPEN_DEBUG_UI = os.environ.get("OPEN_DEBUG_UI", "").lower() in ("1", "true", "yes")
+DOCS_DIR = Path(os.environ.get(
+    "DOCS_DIR", Path(__file__).resolve().parent.parent / "src" / "main" / "resources" / "osw-demo"))
 # the debug map page and the calls it makes (see src/main/resources/osw-demo)
-DEBUG_UI_PATHS = {"", "index.html", "app.js", "style.css", "api/info", "api/network", "api/walkshed"}
+DEBUG_UI_PATHS = {"", "index.html", "app.js", "style.css", "docs.html", "openapi.yaml",
+                  "api/info", "api/network", "api/walkshed"}
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 HOP_BY_HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
@@ -307,15 +315,25 @@ async def handle(request: web.Request):
         inst.last_used = time.monotonic()
 
 
+async def docs(_):
+    """The API documentation page. It describes the API, not any dataset, so it needs no token."""
+    return web.FileResponse(DOCS_DIR / "docs.html", headers={"Content-Type": "text/html; charset=utf-8"})
+
+
+async def openapi(_):
+    return web.FileResponse(DOCS_DIR / "openapi.yaml", headers={"Content-Type": "application/yaml"})
+
+
 async def add_slash(request: web.Request):
     # the map page loads its script and data relative to /{dataset_id}/
     raise web.HTTPFound(f"/{request.match_info['dataset_id']}/")
 
 
 async def index(_):
-    """With OPEN_DEBUG_UI, a page listing the loaded datasets with links to their debug maps."""
+    """With OPEN_DEBUG_UI, a page listing the loaded datasets with links to their debug maps.
+    Without it there is nothing to list, so go straight to the API documentation."""
     if not OPEN_DEBUG_UI:
-        raise web.HTTPNotFound()
+        raise web.HTTPFound("/docs")
     now = time.monotonic()
     rows = []
     for i in sorted(mgr.instances.values(), key=lambda i: i.id):
@@ -335,7 +353,8 @@ async def index(_):
         '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Loaded datasets</title>'
         "<style>body{font:16px system-ui,sans-serif;margin:2rem;color:#16212b}"
         "td,th{text-align:left;padding:.35rem 1.5rem .35rem 0}td:first-child{font-family:ui-monospace,monospace}"
-        "</style></head><body><h1>Loaded datasets</h1>" + body + "</body></html>"))
+        "</style></head><body><h1>Loaded datasets</h1>" + body +
+        '<p><a href="/docs">API documentation</a></p></body></html>'))
 
 
 async def status(_):
@@ -365,6 +384,8 @@ def main():
     app = web.Application(client_max_size=50 * 1024 * 1024)
     app.router.add_get("/", index)
     app.router.add_get("/_status", status)
+    app.router.add_get("/docs", docs)
+    app.router.add_get("/openapi.yaml", openapi)
     app.router.add_get("/{dataset_id}", add_slash)
     app.router.add_route("*", "/{dataset_id}/{tail:.*}", handle)
     app.on_startup.append(on_startup)

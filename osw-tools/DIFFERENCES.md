@@ -59,7 +59,7 @@ walked backwards, each edge rounded up). Those two cost models reproduce the eng
 
 | Cause | Routes | Share | Status |
 |---|---|---|---|
-| The route starts or ends at a different point, more than 5 m away | 269 | 6.7% | **Open.** Known cause: the engines choose the edge to attach to differently. Not planned. |
+| The route starts or ends at a different point, more than 5 m away | 269 | 6.7% | **Left as is.** Mostly Walksheds finding the nearest point on an edge in longitude and latitude instead of on the ground. R5's point is the accurate one. |
 | Costing: each engine's path is the cheaper one under its own rules | 200 | 5.0% | **Left as is.** Incline direction, rounding and missing inclines. R5's incline handling is correct. |
 | **Cause known** | **469** | **11.7%** | |
 | R5's path is cheaper by Walksheds' own costs, yet Walksheds did not take it | 42 | 1.1% | **Unexplained.** Something in Walksheds or Unweaver. |
@@ -116,12 +116,33 @@ wheelchair routes examined.
 
 ## Differences in where a route starts and ends
 
-### Choosing the edge a point attaches to
+### Attaching a point to the network
 
-R5 attaches a point to the nearest edge within 50 m that the traveller can use in at least one direction.
-Walksheds considers several nearby edges and chooses among them. As a result 459 routes (11.5%) start or end more
-than 5 m apart. Most of those are otherwise the same route: 269 (6.7%) differ in length by more than 2% for this
-reason, usually by no more than the offset itself.
+Both engines attach a requested point to a nearby edge and start or end the route there. They differ in which
+edge, and in where on it. As a result 459 routes (11.5%) start or end more than 5 m apart. Most of those are
+otherwise the same route: 269 (6.7%) differ in length by more than 2% for this reason, usually by no more than the
+offset itself.
+
+**Where on the edge.** R5 attaches at the point on the edge nearest to the requested point on the ground. Walksheds
+finds the nearest point using longitude and latitude as they are, as if a degree of each were the same length. At
+Seattle's latitude a degree of longitude is about two-thirds of a degree of latitude, so its point is not the
+nearest one: it lies further along the edge, by up to about 10 m.
+
+*Evidence.* Of the 6,986 ends of the sampled routes that both engines find, projecting in longitude and latitude
+reproduces Walksheds' attachment point to within 1 m for 6,976. The nearest point on the ground does so for 5,599.
+
+**Which edge.** R5 uses the nearest edge within 50 m that the traveller can use in at least one direction.
+Unweaver takes the four nearest edge records, which is usually the two nearest edges since each is stored once per
+direction, and uses the first that is usable. If none of those is, it reports an invalid waypoint, even when a
+usable edge is a little further away. This rule is read from Unweaver's source and has not been tested against
+Walksheds' output.
+
+Of the 410 route ends that the two engines attach more than 5 m apart, 283 are on the same edge at a different
+point, and 127 are on different edges.
+
+*Decision.* R5 is left as it is. Its attachment point is the accurate one, and looking further for a usable edge is
+why it finds a few routes Walksheds does not. The projection in longitude and latitude is a defect to raise with
+the Walksheds team, alongside the incline one.
 
 The 50 m limit is inferred: routes from the deployed Walksheds start up to 50.0 m from the requested point and no
 further. Unweaver's own default is 30 m.

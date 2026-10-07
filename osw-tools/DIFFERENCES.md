@@ -15,13 +15,20 @@ Every percentage in this file is a share of those 4,000 routes.
 
 | Outcome | Routes | Share |
 |---|---|---|
-| Both find a route, and the lengths are within 2% | 2,956 | 73.9% |
+| Both find a route, lengths within 2% | 2,956 | 73.9% |
 | Neither finds a route | 497 | 12.4% |
 | **The two agree** | **3,453** | **86.3%** |
-| Both find a route, and the lengths differ by more than 2% | 537 | 13.4% |
-| Only Walksheds finds a route (all Manual Wheelchair) | 5 | 0.1% |
-| Only R5 finds a route | 5 | 0.1% |
-| **The two differ** | **547** | **13.7%** |
+| Different start or end point | 269 | 6.7% |
+| Costing rules | 200 | 5.0% |
+| **Differ, cause known** | **469** | **11.7%** |
+| Walksheds misses a cheaper path | 42 | 1.1% |
+| R5 does not take a path cheaper by its own costs | 22 | 0.6% |
+| Short steep edges | 4 | 0.1% |
+| Only one of the two finds a route | 10 | 0.3% |
+| **Differ, cause not known** | **78** | **2.0%** |
+
+So on 98% of routes the two either agree or differ for a known reason, and 2% are unexplained. Each cause is
+described under [Remaining](#remaining) below, with its status.
 
 Of the routes whose lengths differ, 284 (7.1%) are within 5% and 36 (0.9%) are more than 25% apart. Costs are
 further apart than lengths: about 2,130 routes (53%) have costs within 5% of each other, with R5's a median 2% higher.

@@ -1,20 +1,33 @@
-# Builds the TDEI → R5 walkshed server image (docker/Dockerfile).
+# Builds the TDEI → R5 walkshed server image (docker/Dockerfile), and deploys it.
 #
-# Pull requests that touch what goes into the image, other than the Java source, build it without publishing, to
-# check it still builds. (Java CI already compiles and tests the source.) Pushes to dev and version tags publish to the
-# Azure Container Registry that the TDEI services use, tagged with the branch or version and with the full commit
-# hash. The container apps in the tdei-r5 resource group pull from that registry.
+# There is a branch for each environment: dev, stage and prod. A push to one of them, which is what merging a pull
+# request into it is, builds the image, publishes it, and points that environment's container app at it. So code
+# reaches stage by merging dev into stage, and prod by merging stage into prod.
 #
-# The registry and its login are repository secrets, named as in the TDEI service repositories:
-#   REGISTRY_DOMAIN     the registry's address
-#   REGISTRY_REPO       the image's name in it
-#   REGISTRY_USERNAME   the account that pushes
-#   REGISTRY_PASSWORD   its password
+#   branch   image tags              container app (resource group tdei-r5)
+#   dev      dev, <commit>           tdei-r5-dev
+#   stage    stage, <commit>         tdei-r5-stage
+#   prod     prod, <commit>          tdei-r5-prod
+#
+# Each app is pointed at the image by its commit, not by the branch tag, so what an app runs is always a known commit.
+#
+# Other triggers:
+#   - A version tag (v*) builds and publishes, without deploying.
+#   - A pull request into dev that touches what goes into the image, other than the Java source, builds it without
+#     publishing, to check it still builds. (Java CI already compiles and tests the source.)
+#   - A manual run builds and publishes the chosen branch, and deploys it to an environment if one is picked.
+#
+# Settings, named as in the other TDEI repositories:
+#   secrets.REGISTRY_DOMAIN         the container registry's address (repository secret)
+#   secrets.REGISTRY_REPO           the image's name in it (repository secret)
+#   secrets.REGISTRY_USERNAME       the account that pushes (repository secret)
+#   secrets.REGISTRY_PASSWORD       its password (repository secret)
+#   secrets.TDEI_CORE_AZURE_CREDS   the Azure login that updates the container apps (organization secret)
 name: Docker image
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ dev, stage, prod ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ dev ]
@@ -27,6 +40,12 @@ on:
       - 'settings.gradle'
       - '.github/workflows/docker-image.yml'
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Also deploy the image to this environment
+        type: choice
+        options: [ none, dev, stage, prod ]
+        default: none
 
 jobs:
   build:
@@ -78,3 +97,47 @@ jobs:
         # A pull request can read the layers cached by builds of dev, but nothing else can read the ones it writes,
         # so writing them would be wasted time.
         cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=max' || '' }}
+
+  deploy:
+    name: Deploy
+    needs: build
+    # A push to an environment's branch, or a manual run that names an environment.
+    if: >-
+      (github.event_name == 'push' && github.ref_type == 'branch')
+      || (github.event_name == 'workflow_dispatch' && inputs.environment != 'none')
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'push' && github.ref_name || inputs.environment }}
+    # One deployment to an environment at a time, in the order they were started.
+    concurrency:
+      group: deploy-${{ github.event_name == 'push' && github.ref_name || inputs.environment }}
+      cancel-in-progress: false
+    env:
+      TARGET: ${{ github.event_name == 'push' && github.ref_name || inputs.environment }}
+
+    steps:
+    - name: Log in to Azure
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.TDEI_CORE_AZURE_CREDS }}
+
+    - name: Point the container app at the new image
+      run: |
+        az config set extension.use_dynamic_install=yes_without_prompt
+        az containerapp update \
+          --name "tdei-r5-$TARGET" \
+          --resource-group tdei-r5 \
+          --image "${{ secrets.REGISTRY_DOMAIN }}/${{ secrets.REGISTRY_REPO }}:${{ github.sha }}" \
+          --output none
+
+    - name: Wait for the new revision to be ready
+      run: |
+        for attempt in $(seq 1 40); do
+          state=$(az containerapp show --name "tdei-r5-$TARGET" --resource-group tdei-r5 \
+            --query "[properties.latestRevisionName==properties.latestReadyRevisionName, properties.runningStatus]" \
+            --output tsv | tr '\n' ' ')
+          echo "$state"
+          case "$state" in "true Running "*) exit 0 ;; esac
+          sleep 10
+        done
+        echo "The new revision of tdei-r5-$TARGET did not become ready." >&2
+        exit 1

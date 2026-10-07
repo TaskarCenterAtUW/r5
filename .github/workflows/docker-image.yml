@@ -1,13 +1,14 @@
 # Builds the TDEI → R5 walkshed server image (docker/Dockerfile).
 #
 # Pull requests only build, to check the image still builds. Pushes to dev and version tags also publish to the
-# Azure Container Registry that the other TDEI repositories use, as <registry>/tdei-r5, tagged with the branch or
-# version and with the full commit hash.
+# Azure Container Registry that the TDEI services use, tagged with the branch or version and with the full commit
+# hash. The container apps in the tdei-r5 resource group pull from that registry.
 #
-# The registry and its login come from the organization's Actions settings, as in those repositories:
-#   vars.DOCKERHUB_REGISTRY   the registry's address (despite the name, an Azure Container Registry)
-#   vars.DOCKERHUB_USERNAME   the account that pushes
-#   secrets.DOCKERHUB_TOKEN   its password
+# The registry and its login are repository secrets, named as in the TDEI service repositories:
+#   REGISTRY_DOMAIN     the registry's address
+#   REGISTRY_REPO       the image's name in it
+#   REGISTRY_USERNAME   the account that pushes
+#   REGISTRY_PASSWORD   its password
 name: Docker image
 
 on:
@@ -39,15 +40,16 @@ jobs:
       if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
       with:
-        registry: ${{ vars.DOCKERHUB_REGISTRY }}
-        username: ${{ vars.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        registry: ${{ secrets.REGISTRY_DOMAIN }}
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
 
     - name: Work out image tags
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ vars.DOCKERHUB_REGISTRY }}/tdei-r5
+        # Pull requests from forks cannot read the secrets, and do not push, so any valid name will do for them.
+        images: ${{ github.event_name == 'pull_request' && 'tdei-r5' || format('{0}/{1}', secrets.REGISTRY_DOMAIN, secrets.REGISTRY_REPO) }}
         tags: |
           type=ref,event=branch
           type=ref,event=pr

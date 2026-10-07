@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,8 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Builds a network from the synthetic OSW fixture (osw-tools/verification/make_test_fixture.py describes its layout) and checks
- * OSW reading, attribute capture, and routing with a pedestrian cost profile.
+ * Builds a network from the synthetic OSW fixture (osw-tools/verification/make_test_fixture.py describes its layout)
+ * and checks OSW reading, attribute capture, and routing with a pedestrian cost profile.
  */
 public class OswNetworkTest {
 
@@ -154,6 +155,61 @@ public class OswNetworkTest {
         assertEquals(
                 attrs.costTable(spec, streets.edgeStore).seconds(streets.edgeStore.getCursor(e102), 1.3),
                 copied.costTable(spec, copy.streetLayer.edgeStore).seconds(edge, 1.3), 1e-12);
+    }
+
+    /**
+     * Steps in TDEI data may end on a node of their own that sits exactly on a sidewalk's node. Edges are joined by
+     * where they end, as in Unweaver, so the two count as one node, and it keeps a kerb type only one of them has.
+     */
+    @Test
+    public void nodesAtTheSamePositionAreJoined () throws Exception {
+        File dir = Files.createTempDirectory("osw-coincident").toFile();
+        dir.deleteOnExit();
+        Files.writeString(new File(dir, "t.nodes.geojson").toPath(), "{\"type\": \"FeatureCollection\", \"features\": ["
+                + node("a", -122.3000, 47.65, "") + ","
+                + node("b", -122.2990, 47.65, "") + ","
+                + node("b-again", -122.2990, 47.65, ", \"barrier\": \"kerb\", \"kerb\": \"raised\"") + ","
+                + node("c", -122.2980, 47.65, "") + "]}");
+        Files.writeString(new File(dir, "t.edges.geojson").toPath(), "{\"type\": \"FeatureCollection\", \"features\": ["
+                + edge("e1", "a", "b", -122.3000, -122.2990, "sidewalk") + ","
+                + edge("e2", "b-again", "c", -122.2990, -122.2980, "crossing") + "]}");
+        TransportNetworkConfig config = new TransportNetworkConfig();
+        config.pruneIslands = false;
+        TransportNetwork joined = TransportNetwork.fromOsw(dir.getAbsolutePath(), config);
+        OswEdgeAttributes joinedAttrs = joined.streetLayer.edgeStore.oswAttributes;
+        Map<String, Integer> vertices = new HashMap<>();
+        for (int v : joinedAttrs.nodeIdForVertex.keys()) vertices.put(joinedAttrs.oswNodeId(v), v);
+        // One vertex stands for both nodes, under the ID of the first.
+        assertEquals(3, vertices.size());
+        assertFalse(vertices.containsKey("b-again"));
+
+        StreetRouter router = new StreetRouter(joined.streetLayer);
+        router.profileRequest = new ProfileRequest();
+        router.streetMode = StreetMode.WALK;
+        router.timeLimitSeconds = 3600;
+        router.setOrigin(vertices.get("a"));
+        router.route();
+        assertTrue(router.getReachedVertices().containsKey(vertices.get("c")));
+
+        // The crossing's first end is the joined node, which took the second node's raised kerb: no curb ramps.
+        EdgeStore.Edge e = joined.streetLayer.edgeStore.getCursor();
+        for (int i = 0; i < joined.streetLayer.edgeStore.nEdges(); i += 2) {
+            e.seek(i);
+            if ("e2".equals(joinedAttrs.ids.edgeId(e.getOSMID()))) {
+                assertEquals(OswEdgeAttributes.CURB_RAMPS_NO, joinedAttrs.curbRamps(i));
+            }
+        }
+    }
+
+    private static String node (String id, double lon, double lat, String moreProperties) {
+        return String.format("{\"type\": \"Feature\", \"geometry\": {\"type\": \"Point\", \"coordinates\": [%s, %s]}, "
+                + "\"properties\": {\"_id\": \"%s\"%s}}", lon, lat, id, moreProperties);
+    }
+
+    private static String edge (String id, String u, String v, double lon0, double lon1, String footway) {
+        return String.format("{\"type\": \"Feature\", \"geometry\": {\"type\": \"LineString\", "
+                + "\"coordinates\": [[%s, 47.65], [%s, 47.65]]}, \"properties\": {\"_id\": \"%s\", \"_u_id\": \"%s\", "
+                + "\"_v_id\": \"%s\", \"highway\": \"footway\", \"footway\": \"%s\"}}", lon0, lon1, id, u, v, footway);
     }
 
     @Test

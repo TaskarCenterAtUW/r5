@@ -11,15 +11,20 @@ production Walksheds server returned for the TDEI quality reports in May 2026 we
 same two profiles the reports used (Unconstrained Pedestrian and Manual Wheelchair). The figures are for a random
 sample of 4,000 of those routes.
 
-| | Result |
-|---|---|
-| Both find a route, or neither does | 3,990 of 4,000 |
-| Only Walksheds finds a route | 5 (all Manual Wheelchair) |
-| Only R5 finds a route | 5 |
-| Route length within 2% of Walksheds', where both find one | 84.6% |
-| Route length within 5% | 92.7% |
-| Route length more than 25% different | 1.0% |
-| Route cost within 5% of Walksheds' | about 60%, with R5 a median 2% higher |
+Every percentage in this file is a share of those 4,000 routes.
+
+| Outcome | Routes | Share |
+|---|---|---|
+| Both find a route, and the lengths are within 2% | 2,956 | 73.9% |
+| Neither finds a route | 497 | 12.4% |
+| **The two agree** | **3,453** | **86.3%** |
+| Both find a route, and the lengths differ by more than 2% | 537 | 13.4% |
+| Only Walksheds finds a route (all Manual Wheelchair) | 5 | 0.1% |
+| Only R5 finds a route | 5 | 0.1% |
+| **The two differ** | **547** | **13.7%** |
+
+Of the routes whose lengths differ, 284 (7.1%) are within 5% and 36 (0.9%) are more than 25% apart. Costs are
+further apart than lengths: about 2,130 routes (53%) have costs within 5% of each other, with R5's a median 2% higher.
 
 These numbers come from one dataset with no road edges. Street costs, fan mode and the rules listed under
 [Not implemented](#not-implemented) have not been compared with Walksheds output at all.
@@ -40,22 +45,25 @@ The sections below describe each cause.
 
 ### Remaining
 
-Of the 3,493 sampled routes that both engines find, 537 (15.4%) still differ in length by more than 2%. To see why,
-each engine's path was costed under both engines' rules: Walksheds' (incline as mapped, unrounded) and R5's (incline
-reversed when walked backwards, each edge rounded up). Those two cost models reproduce the engines' own reported
-costs to within 0.1%.
+The 547 routes on which the two differ (13.7%), by cause. To find the cause where the lengths differ, each engine's
+path was costed under both engines' rules: Walksheds' (incline as mapped, unrounded) and R5's (incline reversed when
+walked backwards, each edge rounded up). Those two cost models reproduce the engines' own reported costs to within
+0.1%.
 
-| Cause | Routes | Share of all | Status |
+| Cause | Routes | Share | Status |
 |---|---|---|---|
-| The route starts or ends at a different point, more than 5 m away | 269 | 7.7% | **Open.** Known cause: the engines choose the edge to attach to differently. Not planned. |
-| Costing: each engine's path is the cheaper one under its own rules | 200 | 5.7% | **Left as is.** Incline direction, rounding and missing inclines. R5's incline handling is correct. |
-| R5's path is cheaper by Walksheds' own costs, yet Walksheds did not take it | 42 | 1.2% | **Unexplained.** Something in Walksheds or Unweaver. |
+| The route starts or ends at a different point, more than 5 m away | 269 | 6.7% | **Open.** Known cause: the engines choose the edge to attach to differently. Not planned. |
+| Costing: each engine's path is the cheaper one under its own rules | 200 | 5.0% | **Left as is.** Incline direction, rounding and missing inclines. R5's incline handling is correct. |
+| **Cause known** | **469** | **11.7%** | |
+| R5's path is cheaper by Walksheds' own costs, yet Walksheds did not take it | 42 | 1.1% | **Unexplained.** Something in Walksheds or Unweaver. |
 | Walksheds' path is cheaper by R5's own costs, yet R5 did not take it | 22 | 0.6% | **Unexplained.** Should not happen; to be investigated. |
 | Walksheds walks an edge R5 has closed | 4 | 0.1% | **Open.** Short steep edges; not investigated. |
+| Only one of the two finds a route | 10 | 0.3% | **Unexplained.** Five each way; not investigated. |
+| **Cause not known** | **78** | **2.0%** | |
 
-So 98% of routes either match or differ for a known reason, and 1.9% differ for a reason not yet understood. The
-unexplained routes on Walksheds' side are the more severe: 12 of the 42 are more than 25% off, against none of the 22
-on R5's side, 18 of which are within 5%.
+In all: on 86.3% of routes the two agree, on 11.7% they differ for a known reason, and on 2.0% they differ for a
+reason not yet understood. The unexplained routes on Walksheds' side are the more severe: 12 of the 42 are more than
+25% off, against none of the 22 on R5's side, 18 of which are within 5%.
 
 ## Differences in how a route is costed
 
@@ -80,8 +88,8 @@ team.
 ### R5 rounds each edge's cost up to a whole second
 
 R5 keeps time in whole seconds and rounds every edge up, with a minimum of one second. Walksheds adds unrounded
-costs. Over a route of thirty short edges this adds some seconds, so R5's costs run slightly higher (a median 2% on
-routes of matching length), and near-ties can fall the other way.
+costs. Over a route of thirty short edges this adds some seconds, so R5's costs run slightly higher (a median of 2%
+higher on routes of matching length), and near-ties can fall the other way.
 
 R5 can compute unrounded costs (`OswWalkshedMain` reports them as `exact`), but its router does not use them.
 
@@ -104,9 +112,9 @@ wheelchair routes examined.
 ### Choosing the edge a point attaches to
 
 R5 attaches a point to the nearest edge within 50 m that the traveller can use in at least one direction.
-Walksheds considers several nearby edges and chooses among them. About 13% of routes start or end more than 5 m
-apart as a result. Most of those are otherwise the same route: only 7.7% of all routes differ in length by more than
-2% for this reason, usually by no more than the offset itself.
+Walksheds considers several nearby edges and chooses among them. As a result 459 routes (11.5%) start or end more
+than 5 m apart. Most of those are otherwise the same route: 269 (6.7%) differ in length by more than 2% for this
+reason, usually by no more than the offset itself.
 
 The 50 m limit is inferred: routes from the deployed Walksheds start up to 50.0 m from the requested point and no
 further. Unweaver's own default is 30 m.
@@ -122,8 +130,8 @@ to node positions in testing, and matters little for real points of interest.
 
 ### Walksheds sometimes misses a cheaper path
 
-In 42 of the 3,493 sampled routes that both engines find, R5's path is cheaper even by Walksheds' own cost
-function, so Walksheds could have taken it. In one, Walksheds walks 104 m where a 31 m path exists along edges it
+In 42 routes (1.1%), R5's path is cheaper even by Walksheds' own cost function, so Walksheds could have taken
+it. In one, Walksheds walks 104 m where a 31 m path exists along edges it
 already uses. Not investigated; these look like Walksheds or Unweaver behaviour rather
 than something to copy. One known Unweaver difference of this kind: where two OSW edges join the same pair of nodes,
 Unweaver keeps one of them and R5 keeps both.

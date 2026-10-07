@@ -32,6 +32,9 @@ import java.util.zip.ZipFile;
  *
  * Mapping:
  *  - Each OSW node becomes an OSM node whose tags are the node's properties (including barrier=kerb / kerb=*).
+ *  - Nodes at the same position (to 7 decimal places) are treated as one node, whatever their IDs. Unweaver, and so
+ *    the TDEI Walksheds service, joins edges by the position of their ends, and some datasets rely on that: steps,
+ *    for instance, may end on a node of their own that sits exactly on a sidewalk's node.
  *  - Each OSW edge becomes exactly one OSM way running _u_id -> (interior geometry points) -> _v_id, with the edge's
  *    properties as tags. Interior geometry points become untagged nodes with IDs from INTERIOR_ID_BASE up. Because
  *    OSW edges only meet at their end nodes, R5 will produce exactly one edge pair per OSW edge.
@@ -64,13 +67,16 @@ public class OswReader {
     private final OswEdgeAttributes.OswIdMap ids = new OswEdgeAttributes.OswIdMap();
 
     private final Map<String, Long> nodeIdLookup = new HashMap<>();
+
+    /** The node standing at each position, so that a later node at the same position is merged into it. */
+    private final Map<Long, Long> nodeAtPosition = new HashMap<>();
     private final Map<String, Long> edgeIdLookup = new HashMap<>();
 
     private long nextAssignedNodeId = ASSIGNED_ID_BASE;
     private long nextAssignedEdgeId = ASSIGNED_ID_BASE;
     private long nextInteriorNodeId = INTERIOR_ID_BASE;
 
-    private int nNodes, nEdges, nSkippedEdges;
+    private int nNodes, nEdges, nSkippedEdges, nMergedNodes;
 
     private OswReader (OSM osm) {
         this.osm = osm;
@@ -96,7 +102,8 @@ public class OswReader {
         } catch (IOException e) {
             throw new RuntimeException("Could not read OSW dataset " + path, e);
         }
-        LOG.info("Read OSW dataset {}: {} nodes, {} edges ({} skipped).", path, reader.nNodes, reader.nEdges, reader.nSkippedEdges);
+        LOG.info("Read OSW dataset {}: {} nodes ({} more merged into a node at the same position), {} edges ({} skipped).",
+                path, reader.nNodes, reader.nMergedNodes, reader.nEdges, reader.nSkippedEdges);
         return new Result(osm, reader.ids);
     }
 
@@ -222,11 +229,32 @@ public class OswReader {
         JsonNode props = feature.get("properties");
         if (geom == null || !"Point".equals(geom.path("type").asText()) || props == null) return;
         JsonNode coords = geom.get("coordinates");
+        double lon = coords.get(0).asDouble(), lat = coords.get(1).asDouble();
         String oswId = props.path("_id").asText(null);
-        long id = oswId != null ? nodeId(oswId) : nodeIdForCoordinate(coords.get(0).asDouble(), coords.get(1).asDouble());
-        Node node = new Node(coords.get(1).asDouble(), coords.get(0).asDouble());
-        node.tags = tagsFromProperties(props);
+        List<OSMEntity.Tag> tags = tagsFromProperties(props);
+        long position = positionKey(lon, lat);
+        Long standing = nodeAtPosition.get(position);
+        if (standing != null) {
+            // Another node is already at this position: use that one wherever this one's ID appears, and give it
+            // any tags (such as a kerb type) that only this one has.
+            if (oswId != null) nodeIdLookup.put(oswId, standing);
+            Node existing = osm.nodes.get(standing);
+            boolean added = false;
+            for (OSMEntity.Tag tag : tags) {
+                if (!existing.hasTag(tag.key)) {
+                    existing.addTag(tag.key, tag.value);
+                    added = true;
+                }
+            }
+            if (added) osm.writeNode(standing, existing);
+            nMergedNodes++;
+            return;
+        }
+        long id = oswId != null ? nodeId(oswId) : nodeIdForCoordinate(lon, lat);
+        Node node = new Node(lat, lon);
+        node.tags = tags;
         osm.writeNode(id, node);
+        nodeAtPosition.put(position, id);
         nNodes++;
     }
 
@@ -275,11 +303,27 @@ public class OswReader {
     private long endNode (String oswId, JsonNode coordinate) {
         double lon = coordinate.get(0).asDouble();
         double lat = coordinate.get(1).asDouble();
+        Long known = oswId != null ? nodeIdLookup.get(oswId) : null;
+        if (known != null && osm.nodes.containsKey(known)) return known;
+        // Not in the nodes file. If a node already stands where the edge ends, the edge joins that one.
+        long position = positionKey(lon, lat);
+        Long standing = nodeAtPosition.get(position);
+        if (standing != null) {
+            if (oswId != null) nodeIdLookup.put(oswId, standing);
+            return standing;
+        }
         long id = oswId != null ? nodeId(oswId) : nodeIdForCoordinate(lon, lat);
         if (!osm.nodes.containsKey(id)) {
             osm.writeNode(id, new Node(lat, lon));
         }
+        nodeAtPosition.put(position, id);
         return id;
+    }
+
+    /** @return a key that is the same for positions that agree to COORDINATE_KEY_PRECISION decimal places. */
+    private static long positionKey (double lon, double lat) {
+        double scale = Math.pow(10, COORDINATE_KEY_PRECISION);
+        return (Math.round(lon * scale) << 32) ^ (Math.round(lat * scale) & 0xffffffffL);
     }
 
     private long nodeId (String oswId) {

@@ -263,7 +263,8 @@ page at `/docs.html`, linked from the bottom of the map page's panel. The contai
 `street_avoidance` parameters of the profile named by `--walksheds-profile` (default `ws-prod`), where it has them.
 Costs are at 1.3 m/s.
 
-Where it differs from Walksheds:
+Where it differs from Walksheds, in brief. [DIFFERENCES.md](DIFFERENCES.md) has the full list, with the evidence for
+each and how closely the two agree:
 
 - `reverse` is not implemented. A request that turns it on gets a 501 with `{"error": "Not implemented: reverse"}`.
 - `fanOut` ("fan mode") costs streets like pedestrian edges: by length and incline, with no street penalty, whatever

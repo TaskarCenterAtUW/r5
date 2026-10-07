@@ -359,8 +359,9 @@ class PedestrianCostSpec:
         if layer.blocked:
             return None, 0.0
         factor = layer.speed_factor
-        if layer.has_incline:
-            i = 0.0 if math.isnan(incline) else incline
+        # An edge with no incline is walked at the layer's plain speed, as Walksheds does, not treated as flat.
+        if layer.has_incline and not math.isnan(incline):
+            i = incline
             if length_meters > layer.min_length_for_limits and (i > layer.max_uphill or i < -layer.max_downhill):
                 return None, 0.0
             k = layer.k_up if i > layer.ideal else layer.k_down

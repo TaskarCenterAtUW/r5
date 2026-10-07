@@ -130,7 +130,7 @@ public class PedestrianCostSpec {
      * Evaluate the cost function for one directed edge.
      *
      * @param tags the edge's OSW tags (null for edges not derived from OSW data, which are walked at base speed)
-     * @param incline grade in the direction of travel, NaN if unknown (treated as flat)
+     * @param incline grade in the direction of travel, NaN if unknown (the edge is then walked at its plain speed)
      * @param lengthMeters edge length, used only for the minimum length below which incline limits are not applied
      * @param curbRamps one of the OswEdgeAttributes.CURB_RAMPS_* constants
      * @param out receives {speedFactor, delaySeconds}. speedFactor multiplies the base walk speed; it is
@@ -156,8 +156,10 @@ public class PedestrianCostSpec {
             return;
         }
         double factor = layer.speedFactor;
-        if (layer.hasIncline) {
-            double i = Double.isNaN(incline) ? 0 : incline;
+        // An edge with no incline is walked at the layer's plain speed, as Walksheds does. It is not treated as flat:
+        // level ground is slightly slower than the ideal, gently downhill, grade.
+        if (layer.hasIncline && !Double.isNaN(incline)) {
+            double i = incline;
             if (lengthMeters > layer.minLengthForLimits && (i > layer.maxUphill || i < -layer.maxDownhill)) {
                 out[0] = IMPASSABLE;
                 return;

@@ -49,3 +49,6 @@ logentries.xml
 src/main/resources/git.properties
 pom.xml.versionsBackup
 analysis.properties
+
+# Python bytecode
+__pycache__/

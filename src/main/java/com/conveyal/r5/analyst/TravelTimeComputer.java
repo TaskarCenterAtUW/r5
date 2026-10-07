@@ -9,6 +9,7 @@ import com.conveyal.r5.analyst.cluster.TravelTimeSurfaceTask;
 import com.conveyal.r5.analyst.fare.InRoutingFareCalculator;
 import com.conveyal.r5.analyst.scenario.PickupWaitTimes;
 import com.conveyal.r5.api.util.LegMode;
+import com.conveyal.r5.osw.PedestrianCostTable;
 import com.conveyal.r5.point_to_point.builder.PointToPointQuery;
 import com.conveyal.r5.profile.DominatingList;
 import com.conveyal.r5.profile.FareDominatingList;
@@ -256,12 +257,22 @@ public class TravelTimeComputer {
 
                 Split origin = sr.getOriginSplit();
 
-                PointSetTimes pointSetTimes = linkedDestinations.eval(
-                        sr::getTravelTimeToVertex,
-                        streetSpeedMillimetersPerSecond,
-                        walkSpeedMillimetersPerSecond,
-                        origin
-                );
+                // With a pedestrian cost profile (OpenSidewalks networks), walking onto destinations' edges uses it too.
+                PedestrianCostTable pedestrianCosts =
+                        (accessMode == StreetMode.WALK) ? sr.getPedestrianCostTable() : null;
+                PointSetTimes pointSetTimes = (pedestrianCosts == null)
+                        ? linkedDestinations.eval(
+                                sr::getTravelTimeToVertex,
+                                streetSpeedMillimetersPerSecond,
+                                walkSpeedMillimetersPerSecond,
+                                origin)
+                        : linkedDestinations.eval(
+                                sr::getTravelTimeToVertex,
+                                streetSpeedMillimetersPerSecond,
+                                walkSpeedMillimetersPerSecond,
+                                origin,
+                                pedestrianCosts,
+                                request.walkSpeed);
 
                 if (onDemandAccess != null) {
                     // Destinations are also reached using on-demand services.

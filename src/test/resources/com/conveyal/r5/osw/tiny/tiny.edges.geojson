@@ -1,0 +1,409 @@
+{
+ "type": "FeatureCollection",
+ "$schema": "https://sidewalks.washington.edu/opensidewalks/0.2/schema.json",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.3,
+      47.65
+     ],
+     [
+      -122.2986665,
+      47.65
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "101",
+    "_u_id": "1",
+    "_v_id": "2",
+    "length": 99.89,
+    "highway": "footway",
+    "footway": "sidewalk",
+    "incline": 0.03
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.2986665,
+      47.65
+     ],
+     [
+      -122.297333,
+      47.65
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "102",
+    "_u_id": "2",
+    "_v_id": "3",
+    "length": 99.89,
+    "highway": "footway",
+    "footway": "sidewalk",
+    "incline": 0.1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.3,
+      47.6501797
+     ],
+     [
+      -122.2986665,
+      47.6501797
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "103",
+    "_u_id": "11",
+    "_v_id": "12",
+    "length": 99.89,
+    "highway": "footway",
+    "footway": "sidewalk",
+    "incline": -0.02
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.2986665,
+      47.6501797
+     ],
+     [
+      -122.2982665,
+      47.6501976
+     ],
+     [
+      -122.2977331,
+      47.6501976
+     ],
+     [
+      -122.297333,
+      47.6501797
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "104",
+    "_u_id": "12",
+    "_v_id": "13",
+    "length": 100.02,
+    "highway": "footway",
+    "footway": "sidewalk",
+    "incline": 0.0
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.297333,
+      47.6501797
+     ],
+     [
+      -122.2973064,
+      47.6501797
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "105",
+    "_u_id": "13",
+    "_v_id": "14",
+    "length": 1.99,
+    "highway": "footway",
+    "footway": "sidewalk",
+    "incline": 0.2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.2986665,
+      47.65
+     ],
+     [
+      -122.2986665,
+      47.650018
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "106",
+    "_u_id": "2",
+    "_v_id": "21",
+    "length": 2.0,
+    "highway": "footway",
+    "footway": "sidewalk",
+    "incline": 0.01
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.2986665,
+      47.6501617
+     ],
+     [
+      -122.2986665,
+      47.6501797
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "107",
+    "_u_id": "22",
+    "_v_id": "12",
+    "length": 2.0,
+    "highway": "footway",
+    "footway": "sidewalk",
+    "incline": -0.01
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.2986665,
+      47.650018
+     ],
+     [
+      -122.2986665,
+      47.6501617
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "108",
+    "_u_id": "21",
+    "_v_id": "22",
+    "length": 15.98,
+    "highway": "footway",
+    "footway": "crossing",
+    "crossing": "marked"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.297333,
+      47.65
+     ],
+     [
+      -122.297333,
+      47.650018
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "109",
+    "_u_id": "3",
+    "_v_id": "31",
+    "length": 2.0,
+    "highway": "footway",
+    "footway": "sidewalk",
+    "incline": 0.0
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.297333,
+      47.6501617
+     ],
+     [
+      -122.297333,
+      47.6501797
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "110",
+    "_u_id": "32",
+    "_v_id": "13",
+    "length": 2.0,
+    "highway": "footway",
+    "footway": "sidewalk",
+    "incline": 0.0
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.297333,
+      47.650018
+     ],
+     [
+      -122.297333,
+      47.6501617
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "111",
+    "_u_id": "31",
+    "_v_id": "32",
+    "length": 15.98,
+    "highway": "footway",
+    "footway": "crossing",
+    "crossing": "marked"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.3,
+      47.65
+     ],
+     [
+      -122.3,
+      47.6501797
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "112",
+    "_u_id": "1",
+    "_v_id": "11",
+    "length": 19.98,
+    "highway": "footway",
+    "footway": "crossing",
+    "crossing": "unmarked"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.297333,
+      47.6501797
+     ],
+     [
+      -122.2972664,
+      47.6502246
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "113",
+    "_u_id": "13",
+    "_v_id": "41",
+    "length": 7.06,
+    "highway": "elevator"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.2986665,
+      47.6501797
+     ],
+     [
+      -122.2985332,
+      47.6502695
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "114",
+    "_u_id": "12",
+    "_v_id": "51",
+    "length": 14.12,
+    "highway": "steps",
+    "incline": "up"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.3006667,
+      47.6501797
+     ],
+     [
+      -122.3,
+      47.6501797
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "115",
+    "_u_id": "n-west",
+    "_v_id": "11",
+    "length": 49.94,
+    "highway": "footway",
+    "incline": 0.0
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -122.297333,
+      47.65
+     ],
+     [
+      -122.2965329,
+      47.65
+     ]
+    ]
+   },
+   "properties": {
+    "_id": "116",
+    "_u_id": "3",
+    "_v_id": "61",
+    "length": 59.93,
+    "highway": "residential",
+    "name": "Example St"
+   }
+  }
+ ]
+}

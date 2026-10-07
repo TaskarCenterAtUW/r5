@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Walkshed explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <link href="style.css" rel="stylesheet">
+</head>
+<body>
+  <main class="app">
+    <div id="map" class="map" role="application" aria-label="Map. Click to choose a starting point."></div>
+
+    <aside class="panel" aria-label="Walkshed settings">
+      <header class="panel-head">
+        <h1 id="dataset-name">Walkshed explorer</h1>
+        <p id="dataset-summary" class="quiet">Loading network…</p>
+      </header>
+
+      <section class="group" aria-labelledby="profile-label">
+        <label id="profile-label" for="profile" class="group-title">Who is travelling</label>
+        <select id="profile"></select>
+        <p id="profile-description" class="quiet small"></p>
+      </section>
+
+      <section class="group" aria-labelledby="limits-title">
+        <h2 id="limits-title" class="group-title">Limits for this traveller</h2>
+        <div id="parameters" class="fields"></div>
+      </section>
+
+      <section class="group" aria-labelledby="trip-title">
+        <h2 id="trip-title" class="group-title">Trip</h2>
+        <div class="fields">
+          <div class="field range">
+            <label for="max-cost">Maximum cost (seconds)</label>
+            <input id="max-cost-number" class="number" type="number" min="100" max="3600" step="100" value="300"
+                   aria-label="Maximum cost in seconds">
+            <input id="max-cost" type="range" min="100" max="3600" step="100" value="300">
+          </div>
+          <div class="field check" title="Not available yet: where you can get to this point from, rather than where you can get to from it.">
+            <input id="reverse-walkshed" type="checkbox" role="switch" disabled>
+            <label for="reverse-walkshed">Reverse walkshed <span class="quiet">(not available yet)</span></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="result" aria-live="polite">
+        <p id="result-text">Click the map to choose a starting point.</p>
+      </section>
+
+      <label class="toggle">
+        <input id="show-unusable" type="checkbox" checked>
+        <span>Show paths blocked by these limits</span>
+      </label>
+
+      <details class="provenance">
+        <summary>What produced this result</summary>
+        <dl>
+          <dt>Profile ID</dt><dd><button type="button" class="id" id="profile-id" title="Copy">–</button></dd>
+          <dt>Run ID</dt><dd><button type="button" class="id" id="run-id" title="Copy">–</button></dd>
+          <dt>Network data</dt><dd><button type="button" class="id" id="network-id" title="Copy">–</button></dd>
+          <dt>R5</dt><dd id="r5-version">–</dd>
+        </dl>
+        <p class="quiet small">The profile ID changes whenever the profile file changes. The run ID also covers the
+          limits above. Results with the same IDs, network data and R5 version are directly comparable.</p>
+      </details>
+    </aside>
+
+    <figure class="legend" aria-label="Legend">
+      <figcaption>Minutes from the start</figcaption>
+      <ol id="legend-bands" class="bands"></ol>
+      <ul class="keys">
+        <li><span class="swatch unusable"></span>Blocked by these limits</li>
+        <li><span class="swatch unreached"></span>Not reached</li>
+        <li><span class="swatch snap"></span>Where the walk joins a path</li>
+      </ul>
+    </figure>
+  </main>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

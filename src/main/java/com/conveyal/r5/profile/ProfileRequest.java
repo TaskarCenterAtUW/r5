@@ -11,6 +11,7 @@ import com.conveyal.r5.model.json_serialization.TransitModeSetDeserializer;
 import com.conveyal.r5.model.json_serialization.TransitModeSetSerializer;
 import com.conveyal.r5.model.json_serialization.ZoneIdDeserializer;
 import com.conveyal.r5.model.json_serialization.ZoneIdSerializer;
+import com.conveyal.r5.osw.PedestrianCostRequest;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -196,6 +197,12 @@ public class ProfileRequest implements Serializable, Cloneable {
      * at all in Analysis (FastRaptorWorker), only in Modeify (McRaptorSuboptimalPathProfileRouter).
      */
     public boolean wheelchair;
+
+    /**
+     * Optional pedestrian cost profile and user parameters, applied to walking on networks built from OpenSidewalks
+     * data. See com.conveyal.r5.osw.PedestrianCostProfile. Null means R5's normal walk costs.
+     */
+    public PedestrianCostRequest pedestrianCost;
 
     /** Whether this is a depart-after or arrive-by search */
     private SearchType searchType;

@@ -14,6 +14,8 @@ import com.conveyal.r5.analyst.scenario.Scenario;
 import com.conveyal.r5.analyst.scenario.ShapefileLts;
 import com.conveyal.r5.common.JsonUtilities;
 import com.conveyal.r5.kryo.KryoNetworkSerializer;
+import com.conveyal.r5.labeling.OswTraversalPermissionLabeler;
+import com.conveyal.r5.osw.OswReader;
 import com.conveyal.r5.profile.StreetMode;
 import com.conveyal.r5.streets.StreetLayer;
 import com.google.common.collect.Sets;
@@ -260,6 +262,27 @@ public class TransportNetwork implements Serializable {
     
 
     
+
+    /**
+     * Build a pedestrian network from an OpenSidewalks (OSW) dataset (a zip archive, a directory, or an
+     * *.edges.geojson file), with no transit. OSW node and edge IDs are preserved (see OswEdgeAttributes) and OSW
+     * attributes are recorded on every edge so pedestrian cost profiles can be applied per request.
+     *
+     * @param config may be null for defaults. Its traversalPermissionLabeler is overridden with the OSW labeler.
+     *               When null, small disconnected components are kept (pruneIslands = false), as Unweaver does:
+     *               they are common in sidewalk data. Pass a config to choose otherwise.
+     */
+    public static TransportNetwork fromOsw (String oswPath, TransportNetworkConfig config) {
+        if (config == null) {
+            config = new TransportNetworkConfig();
+            config.pruneIslands = false;
+        }
+        config.traversalPermissionLabeler = OswTraversalPermissionLabeler.NAME;
+        OswReader.Result osw = OswReader.read(oswPath);
+        TransportNetwork network = build(config, osw.osm, Stream.empty(), true);
+        network.streetLayer.edgeStore.oswAttributes.ids = osw.ids;
+        return network;
+    }
 
     /**
      * Scan a directory detecting all the files that are network inputs, then build a network from those files.

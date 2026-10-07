@@ -1,0 +1,209 @@
+{
+ "type": "FeatureCollection",
+ "$schema": "https://sidewalks.washington.edu/opensidewalks/0.2/schema.json",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.3,
+     47.65
+    ]
+   },
+   "properties": {
+    "_id": "1"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.2986665,
+     47.65
+    ]
+   },
+   "properties": {
+    "_id": "2"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.297333,
+     47.65
+    ]
+   },
+   "properties": {
+    "_id": "3"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.3,
+     47.6501797
+    ]
+   },
+   "properties": {
+    "_id": "11"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.2986665,
+     47.6501797
+    ]
+   },
+   "properties": {
+    "_id": "12"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.297333,
+     47.6501797
+    ]
+   },
+   "properties": {
+    "_id": "13"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.2973064,
+     47.6501797
+    ]
+   },
+   "properties": {
+    "_id": "14"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.2986665,
+     47.650018
+    ]
+   },
+   "properties": {
+    "_id": "21",
+    "barrier": "kerb",
+    "kerb": "lowered"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.2986665,
+     47.6501617
+    ]
+   },
+   "properties": {
+    "_id": "22",
+    "barrier": "kerb",
+    "kerb": "lowered"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.297333,
+     47.650018
+    ]
+   },
+   "properties": {
+    "_id": "31",
+    "barrier": "kerb",
+    "kerb": "raised"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.297333,
+     47.6501617
+    ]
+   },
+   "properties": {
+    "_id": "32",
+    "barrier": "kerb",
+    "kerb": "lowered"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.2972664,
+     47.6502246
+    ]
+   },
+   "properties": {
+    "_id": "41"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.2985332,
+     47.6502695
+    ]
+   },
+   "properties": {
+    "_id": "51"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.2965329,
+     47.65
+    ]
+   },
+   "properties": {
+    "_id": "61"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -122.3006667,
+     47.6501797
+    ]
+   },
+   "properties": {
+    "_id": "n-west"
+   }
+  }
+ ]
+}

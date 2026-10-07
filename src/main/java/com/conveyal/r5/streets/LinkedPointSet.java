@@ -6,6 +6,8 @@ import com.conveyal.r5.analyst.WebMercatorGridPointSet;
 import com.conveyal.r5.analyst.progress.NoopProgressListener;
 import com.conveyal.r5.analyst.progress.ProgressListener;
 import com.conveyal.r5.common.GeometryUtils;
+import com.conveyal.r5.osw.PedestrianCostTable;
+import com.conveyal.r5.osw.PedestrianCostTimeCalculator;
 import com.conveyal.r5.profile.StreetMode;
 import com.conveyal.r5.streets.EdgeStore.Edge;
 import com.conveyal.r5.util.LambdaCounter;
@@ -431,7 +433,21 @@ public class LinkedPointSet implements Serializable {
           int offStreetSpeed,
           Split origin
     ) {
-        return eval(timeToVertex, onStreetSpeed, offStreetSpeed, origin, null);
+        return eval(timeToVertex, onStreetSpeed, offStreetSpeed, origin, null, null, 0);
+    }
+
+    /// Like the four-argument [#eval], but costing the partial edges between street vertices (or the origin) and
+    /// each point's split point with a pedestrian cost profile, so that walking onto a destination's edge respects
+    /// the profile's slowdowns, delays and impassable edges. For WALK on networks built from OpenSidewalks data.
+    public PointSetTimes eval (
+          CostToVertexFunction timeToVertex,
+          int onStreetSpeed,
+          int offStreetSpeed,
+          Split origin,
+          PedestrianCostTable pedestrianCosts,
+          double walkSpeed
+    ) {
+        return eval(timeToVertex, onStreetSpeed, offStreetSpeed, origin, null, pedestrianCosts, walkSpeed);
     }
 
     /// Like the four-argument [#eval], but clipped by the given place filter. It yields a time only
@@ -445,7 +461,7 @@ public class LinkedPointSet implements Serializable {
           int offStreetSpeed,
           OnDemandPlaceFilter place
     ) {
-        return eval(timeToVertex, onStreetSpeed, offStreetSpeed, null, place);
+        return eval(timeToVertex, onStreetSpeed, offStreetSpeed, null, place, null, 0);
     }
 
     /// Shared implementation for [#eval] and [#evalClipped]. Either or both of origin and place may
@@ -457,11 +473,14 @@ public class LinkedPointSet implements Serializable {
           int onStreetSpeed,
           int offStreetSpeed,
           Split origin,
-          OnDemandPlaceFilter place
+          OnDemandPlaceFilter place,
+          PedestrianCostTable pedestrianCosts,
+          double walkSpeed
     ) {
         int[] travelTimes = new int[edges.length];
         Arrays.fill(travelTimes, Integer.MAX_VALUE);
         EdgeStore.Edge edge = streetLayer.edgeStore.getCursor();
+        EdgeStore.Edge backEdge = streetLayer.edgeStore.getCursor();
         // Reused across iterations only when a place filter is supplied, to reconstruct enough
         // of each point's linkage Split for the filter's containment test.
         Split placeSplit = (place == null) ? null : new Split();
@@ -484,7 +503,11 @@ public class LinkedPointSet implements Serializable {
                     continue;
                 }
             }
-            if (origin != null && origin.edge == edges[i]) {
+            if (pedestrianCosts != null) {
+                backEdge.seek(edges[i] + 1);
+                travelTimes[i] = pedestrianTimeToPoint(
+                        timeToVertex, edge, backEdge, i, origin, offStreetSpeed, pedestrianCosts, walkSpeed);
+            } else if (origin != null && origin.edge == edges[i]) {
                 // The target point lies along the same edge as the origin
                 int onStreetDistance_mm = Math.abs(origin.distance0_mm - distances0_mm[i]);
                 travelTimes[i] = origin.distanceToEdge_mm / offStreetSpeed +
@@ -657,6 +680,38 @@ public class LinkedPointSet implements Serializable {
             time1 += distances1_mm[pointIndex] / onStreetSpeed + offStreetTime;
             return Math.min(handleOverflow(time0), handleOverflow(time1));
         }
+    }
+
+    /// As timeToPoint (and the same-edge origin case) but costing partial edges with a pedestrian cost profile.
+    /// forwardEdge and backwardEdge are cursors on the pair the point is linked to.
+    private int pedestrianTimeToPoint (CostToVertexFunction costToVertex, Edge forwardEdge, Edge backwardEdge,
+                                       int pointIndex, Split origin, int offStreetSpeed,
+                                       PedestrianCostTable costs, double walkSpeed) {
+        int offStreetTime = distancesToEdge_mm[pointIndex] / offStreetSpeed;
+        int best = Integer.MAX_VALUE;
+        if (origin != null && origin.edge == edges[pointIndex]) {
+            // Along the origin's own edge, in whichever direction leads from the origin to the point.
+            int delta_mm = distances0_mm[pointIndex] - origin.distance0_mm;
+            Edge direction = delta_mm >= 0 ? forwardEdge : backwardEdge;
+            int along = PedestrianCostTimeCalculator.roundPartialSeconds(
+                    costs.seconds(direction, walkSpeed, Math.abs(delta_mm) / 1000d));
+            if (along >= 0) {
+                best = origin.distanceToEdge_mm / offStreetSpeed + along + offStreetTime;
+            }
+        }
+        int time0 = costToVertex.getCost(forwardEdge.getFromVertex());
+        if (time0 != Integer.MAX_VALUE) {
+            int along = PedestrianCostTimeCalculator.roundPartialSeconds(
+                    costs.seconds(forwardEdge, walkSpeed, distances0_mm[pointIndex] / 1000d));
+            if (along >= 0) best = Math.min(best, handleOverflow(time0 + along + offStreetTime));
+        }
+        int time1 = costToVertex.getCost(forwardEdge.getToVertex());
+        if (time1 != Integer.MAX_VALUE) {
+            int along = PedestrianCostTimeCalculator.roundPartialSeconds(
+                    costs.seconds(backwardEdge, walkSpeed, distances1_mm[pointIndex] / 1000d));
+            if (along >= 0) best = Math.min(best, handleOverflow(time1 + along + offStreetTime));
+        }
+        return best;
     }
 
     private int handleOverflow (int value) {

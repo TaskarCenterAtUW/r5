@@ -13,7 +13,7 @@ info:
     - **The R5 demo server run directly** (`gradle runOswDemo --args="--osw <dataset>"`). One dataset, no prefix and
       no token.
 
-    Choose which under **Servers**.
+    This page talks to whichever of the two it was loaded from, shown under **Servers**.
 
     **Walksheds-compatible API** (`/api/v1`). A stand-in for the routing calls of the TDEI Walksheds service, as used
     by the TDEI quality reports. Point `WALKSHEDS_URL` at `<server>/api/v1`. Costs are those of the server's
@@ -339,7 +339,7 @@ components:
       in: query
       description: |
         Fan mode: cost streets like footways, by length and incline with no street penalty, whatever
-        `streetAvoidance` says. 501 if the server's profile has no fan mode.
+        `streetAvoidance` says. This lets a route use streets to bridge gaps between sidewalks.
       schema: {type: string, enum: ["0", "1", "true", "false", "True", "False"]}
       example: "False"
     reverse:
@@ -357,7 +357,7 @@ components:
           schema: {$ref: "#/components/schemas/Error"}
           example: {error: lat is required.}
     NotImplemented:
-      description: The request turns on something this server does not do (`reverse`, or `fanOut` without a fan-mode profile)
+      description: The request turns on `reverse`, which this server does not implement
       content:
         application/json:
           schema: {$ref: "#/components/schemas/Error"}

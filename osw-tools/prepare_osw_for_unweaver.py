@@ -101,12 +101,10 @@ def _kerb(props):
 
 
 def curbramps(u_props, v_props):
+    """Whether an edge has curb ramps, as R5 and the TDEI Walksheds service decide it: yes, unless a kerb that is
+    not lowered or flush (or has no type given) stands at either end. An end with no kerb node is no obstacle."""
     k0, k1 = _kerb(u_props), _kerb(v_props)
-    if (k0 is not None and k0 not in RAMP_KERBS) or (k1 is not None and k1 not in RAMP_KERBS):
-        return False
-    if k0 is not None and k1 is not None:
-        return True
-    return None
+    return not ((k0 is not None and k0 not in RAMP_KERBS) or (k1 is not None and k1 not in RAMP_KERBS))
 
 
 def prepare(dataset, out_dir):
@@ -130,10 +128,8 @@ def prepare(dataset, out_dir):
         if explicit != CURB_RAMPS_UNKNOWN:
             p["curbramps"] = 1 if explicit == CURB_RAMPS_YES else 0
         else:
-            c = curbramps(node_props.get(str(u)), node_props.get(str(v)))
-            if c is not None:
-                # 1/0 rather than true/false: Unweaver's GeoPackage tables have no boolean column type.
-                p["curbramps"] = 1 if c else 0
+            # 1/0 rather than true/false: Unweaver's GeoPackage tables have no boolean column type.
+            p["curbramps"] = 1 if curbramps(node_props.get(str(u)), node_props.get(str(v))) else 0
         # Unweaver negates incline on reverse edges; a non-numeric incline (steps "up"/"down") would make the GeoJSON
         # driver type the whole column as text and break that. R5 treats non-numeric inclines as flat, so drop them.
         if "incline" in p and not isinstance(p["incline"], bool) and isinstance(p["incline"], str):

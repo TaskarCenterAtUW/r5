@@ -339,9 +339,10 @@ page from a folder instead of the jar, so you can edit `src/main/resources/osw-d
   than `minLengthForLimits` metres that are steeper than the limits are impassable. A missing or non-numeric `incline`
   is treated as flat.
 - `delaySeconds` is added to travel time. (In `cost-dynamic.py` the delay is overwritten. That bug is fixed here.)
-- `requireCurbRamps`: the edge needs curb ramps. R5 derives this from OSW kerb nodes at both ends: `kerb=lowered` or
-  `kerb=flush` at both ends means yes; any other kerb at either end means no; missing kerb information means no
-  (strict, matching Unweaver's `curbramps` attribute). An explicit `curbramps` edge property takes precedence.
+- `requireCurbRamps`: the edge needs curb ramps. R5 derives this from the OSW kerb nodes at its two ends, as the
+  TDEI Walksheds service does: the edge has ramps unless a kerb stands in the way at either end, meaning any kerb
+  that is not `kerb=lowered` or `kerb=flush`, including one with no `kerb` value. An end with no kerb node is no
+  obstacle. An explicit `curbramps` edge property takes precedence.
 - `speedFactor` (optional) multiplies the speed for a layer.
 - `blocked` (optional, true or false) makes the layer impassable. With a parameter, a traveller's choice can close a
   layer: `"blocked": "$avoid_curbs"` on steps.

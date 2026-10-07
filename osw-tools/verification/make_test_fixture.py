@@ -15,7 +15,7 @@ Layout (meters; x east, y north), two sidewalks along a street with three crossi
 
  - N2-N3 has interior geometry points; N1-N2 is 2% downhill going east.
  - Crossing KS2-KN2 has lowered kerbs at both ends (passable with avoid_curbs).
- - Crossing S1-N1 has no kerb nodes (impassable with avoid_curbs, matching Unweaver's curbramps semantics).
+ - Crossing S1-N1 has no kerb nodes (passable with avoid_curbs: with no kerb there is nothing in the way).
  - Footway P1 (no footway=* tag), steps ST1 and road R1 match no layer: impassable under otherEdges=impassable.
  - Node "n-west" (P1) has a non-numeric ID.
 """

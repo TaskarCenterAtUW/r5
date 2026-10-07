@@ -274,8 +274,7 @@ each and how closely the two agree:
   same without fan mode (the version on TDEI ticket 1965). In both, every footway is usable; crossings add 30 s and
   need curb ramps when avoiding curbs; steps are walked at 0.5 m/s unless avoiding curbs; streets cost
   `exp(k × streetAvoidance)` times more (k = 2 service, 3 residential, 4 secondary, tertiary and unclassified) and
-  are closed at 1. Rules they leave out are listed below. An edge with no `incline` is treated as flat, where
-  Walksheds walks it at exactly the base speed.
+  are closed at 1. Rules they leave out are listed below.
 - Points snap to the nearest edge within 50 m that the traveller can use in at least one direction, and are
   `InvalidWaypoint` if there is none. (50 m is what the deployed Walksheds appears to use; Unweaver's default is 30.)
 - Edge features have the OSW properties with `:` in keys replaced by `_`, but not the `curbs`, `lowered_curbs` and
@@ -337,8 +336,8 @@ page from a folder instead of the jar, so you can edit `src/main/resources/osw-d
   list of values, or be present (`"*"`). Edges matching no layer follow `otherEdges` (`impassable` or `walk`).
   Edges with no OSW attributes at all (transit links, scenario-added streets) are walked at base speed.
 - `inclineSpeed`: Tobler's hiking function, with speed falling to `base / divisor` at the user's limits. Edges longer
-  than `minLengthForLimits` metres that are steeper than the limits are impassable. A missing or non-numeric `incline`
-  is treated as flat.
+  than `minLengthForLimits` metres that are steeper than the limits are impassable. An edge with a missing or
+  non-numeric `incline` is walked at the layer's plain speed, with no limit applied.
 - `delaySeconds` is added to travel time. (In `cost-dynamic.py` the delay is overwritten. That bug is fixed here.)
 - `requireCurbRamps`: the edge needs curb ramps. R5 derives this from the OSW kerb nodes at its two ends, as the
   TDEI Walksheds service does: the edge has ramps unless a kerb stands in the way at either end, meaning any kerb
@@ -420,3 +419,7 @@ has no `static` arguments, so set `PEDESTRIAN_PROFILE` or put `pedestrian_profil
 - Java: `com.conveyal.r5.osw.PedestrianCostProfileTest` and `OswNetworkTest`, run with the normal Gradle test task.
   They use the fixture in `src/test/resources/com/conveyal/r5/osw/tiny/` (regenerate with `osw-tools/verification/make_test_fixture.py`).
 - Python: `cd osw-tools/verification && python3 -m unittest test_pedestrian_profile` (no Unweaver needed).
+- `WalkshedsRegressionTest`, also in the Gradle test task, compares R5 with answers saved from the TDEI Walksheds
+  service and fails on any difference that [DIFFERENCES.md](DIFFERENCES.md) does not account for. Its fixtures are
+  under `src/test/resources/com/conveyal/r5/osw/walksheds/` (rebuild with
+  `osw-tools/verification/make_walksheds_fixtures.py`).

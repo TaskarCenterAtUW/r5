@@ -33,8 +33,10 @@ described under [Remaining](#remaining) below, with its status.
 Of the routes whose lengths differ, 284 (7.1%) are within 5% and 36 (0.9%) are more than 25% apart. Costs are
 further apart than lengths: about 2,130 routes (53%) have costs within 5% of each other, with R5's a median 2% higher.
 
-These numbers come from one dataset with no road edges. Street costs, fan mode and the rules listed under
-[Not implemented](#not-implemented) have not been compared with Walksheds output at all.
+These numbers come from one dataset with no road edges. What streets cost has been checked separately, against
+one Walksheds walkshed on a dataset with roads (see [Tests](#tests)): at a street avoidance of 0.5, R5's costs
+match. Fan mode on a dataset with roads, and the rules listed under [Not implemented](#not-implemented), have not
+been compared with Walksheds output.
 
 ## Where the differences come from
 
@@ -49,6 +51,7 @@ The sections below describe each cause.
 | R5's profile ignored incline on crossings and never used steps | **Fixed** | Routes on which the two disagree about a route existing: 128 → 83 of 4,000 |
 | R5 required a lowered or flush kerb at both ends of a crossing for it to have curb ramps | **Fixed** | Wheelchair routes only Walksheds finds: 54 → 5 |
 | R5 joined edges by node ID, leaving steps and other edges that share only a position unconnected | **Fixed** | Pedestrian routes only Walksheds finds: 24 → 0. Routes over 25% different in length: 58 → 36 |
+| R5 treated an edge with no incline as flat, which is slower than the plain speed Walksheds walks it at | **Fixed** | No change on this sample, where nearly every edge has an incline. On a dataset with roads, which have none, every street cost 17% too much: found by the regression tests |
 
 ### Remaining
 
@@ -60,7 +63,7 @@ walked backwards, each edge rounded up). Those two cost models reproduce the eng
 | Cause | Routes | Share | Status |
 |---|---|---|---|
 | The route starts or ends at a different point, more than 5 m away | 269 | 6.7% | **Left as is.** Mostly Walksheds finding the nearest point on an edge in longitude and latitude instead of on the ground. R5's point is the accurate one. |
-| Costing: each engine's path is the cheaper one under its own rules | 200 | 5.0% | **Left as is.** Incline direction, rounding and missing inclines. R5's incline handling is correct. |
+| Costing: each engine's path is the cheaper one under its own rules | 200 | 5.0% | **Left as is.** Incline direction and rounding. R5's incline handling is correct. |
 | **Cause known** | **469** | **11.7%** | |
 | R5's path is cheaper by Walksheds' own costs, yet Walksheds did not take it | 42 | 1.1% | **Unexplained.** Something in Walksheds or Unweaver. |
 | Walksheds' path is cheaper by R5's own costs, yet R5 did not take it | 22 | 0.6% | **Unexplained.** Should not happen; to be investigated. |
@@ -99,13 +102,6 @@ costs. Over a route of thirty short edges this adds some seconds, so R5's costs 
 higher on routes of matching length), and near-ties can fall the other way.
 
 R5 can compute unrounded costs (`OswWalkshedMain` reports them as `exact`), but its router does not use them.
-
-### An edge with no incline
-
-Walksheds walks an edge that has no `incline` at exactly the base speed. R5 treats it as flat, an incline of 0,
-which is slightly slower than base speed because the fastest incline is a gentle downhill (-0.87%). At the default
-limits the difference is about 16% on such an edge. Nearly every edge in the Seattle dataset has an incline, so the
-effect there is small.
 
 ### Short steep edges
 
@@ -191,10 +187,38 @@ here as rules, because each is something R5 does only because Walksheds does.
 |---|---|
 | Curb ramps on a crossing | A crossing has ramps unless a kerb that is not lowered or flush, including one with no type given, stands at either end. An end with no kerb node is no obstacle. Agrees with Walksheds' `curbramps` flag on all 8,571 crossings checked. R5 used to require a lowered or flush kerb at both ends. |
 | Joining edges | Edges are joined by where their ends are. Nodes at the same position, to 7 decimal places, are one node. The Seattle dataset has 1,202 such nodes, mostly the ends of steps, which R5 used to leave unconnected. |
+| An edge with no incline | Walked at the plain speed for its kind, with no incline limit. Not treated as flat: level ground is slightly slower than the ideal grade, a gentle downhill. |
 | Plain footways | Every `highway=footway` is usable, not only sidewalks and crossings. |
 | Steps | Walked at 0.5 m/s, and closed when avoiding curbs. |
 | Crossings and incline | Crossings are subject to the incline limits as well as their 30 s delay. |
 | Fan mode | With `fanOut` on, streets cost the same as footways whatever the street avoidance. |
+
+## Tests
+
+`WalkshedsRegressionTest` (in `src/test/java/com/conveyal/r5/osw/`) runs with the rest of R5's tests and fails if R5
+moves away from Walksheds in a way this file does not account for. It compares R5 with answers saved from the
+Walksheds service, in two ways:
+
+- **Exactly, with the accepted differences taken out.** The network is costed with R5's profile, attributes and
+  connections, but without rounding, with incline as mapped, and starting from Walksheds' own costs at the ends of the
+  edge its origin is on. That removes rounding, incline direction and the attachment point from the comparison. What
+  is left must match Walksheds to within a second at every node, and R5 must reach exactly the nodes Walksheds does.
+- **End to end, with an allowance for them.** R5's API is asked what Walksheds was asked. The answers must agree on
+  whether there is a walkshed or route at all, and on each node's cost to within 5 s plus 13%.
+
+The saved answers come from the TDEI quality reports' test data, and are under
+`src/test/resources/com/conveyal/r5/osw/walksheds/`:
+
+| Fixture | Dataset | Walksheds answers |
+|---|---|---|
+| `latah` | TDEI dataset `211cba13-5f11-4be3-b248-3bc73ba12d1e`: 191 edges, no roads, many crossings with untagged kerbs | The walkshed from each of 3 points under each of the reports' 4 profiles, one of which has no usable start; and whether a route exists between each pair of points (none does: they are on separate islands) |
+| `newcastle` | Part of TDEI dataset `de21a3cd-b363-40e1-b66c-9543b182571c`, which has roads | One walkshed with a street avoidance of 0.5, in which residential streets are walked at a penalty |
+
+`osw-tools/verification/make_walksheds_fixtures.py` builds the fixtures from a checkout of the reports. To add a
+case, save a raw `reachable_tree` response and the request that produced it, add it there, and rerun it.
+
+When one of these tests fails after a change, either the change is a mistake, or it is a new accepted difference. A
+new accepted difference belongs in this file, and the test should be changed to take it out of the comparison.
 
 ## Shared behaviour worth knowing
 

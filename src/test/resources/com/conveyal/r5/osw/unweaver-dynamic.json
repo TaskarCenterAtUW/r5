@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "name": "unweaver-dynamic",
+  "description": "Port of WalkshedTool's Unweaver cost-dynamic.py with the crossing/elevator delay bug fixed (delays are added to travel time rather than overwritten). Elevators are always open. Base speed is the request's walk speed.",
+  "parameters": {
+    "uphill":      {"type": "number",  "default": 0.085, "min": 0, "max": 1, "description": "Maximum uphill grade, e.g. 0.085 for 8.5%"},
+    "downhill":    {"type": "number",  "default": 0.1,   "min": 0, "max": 1, "description": "Maximum downhill grade, as a positive number"},
+    "avoid_curbs": {"type": "boolean", "default": true, "description": "Only use crossings with curb ramps at both ends"}
+  },
+  "layers": [
+    {
+      "name": "sidewalks",
+      "match": {"footway": "sidewalk"},
+      "inclineSpeed": {"maxUphill": "$uphill", "maxDownhill": "$downhill", "ideal": -0.0087, "divisor": 5, "minLengthForLimits": 3}
+    },
+    {
+      "name": "crossings",
+      "match": {"footway": "crossing"},
+      "delaySeconds": 30,
+      "requireCurbRamps": "$avoid_curbs"
+    },
+    {
+      "name": "elevator_paths",
+      "match": {"highway": "elevator"},
+      "delaySeconds": 45
+    }
+  ],
+  "otherEdges": "impassable"
+}

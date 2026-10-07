@@ -14,6 +14,7 @@ import com.conveyal.r5.common.GeometryUtils;
 import com.conveyal.r5.labeling.LevelOfTrafficStressLabeler;
 import com.conveyal.r5.labeling.NoSidewalkCyclingTraversalPermissionLabeler;
 import com.conveyal.r5.labeling.NoSteepInclinesTraversalPermissionLabeler;
+import com.conveyal.r5.labeling.OswTraversalPermissionLabeler;
 import com.conveyal.r5.labeling.RoadPermission;
 import com.conveyal.r5.labeling.SidewalkTraversalPermissionLabeler;
 import com.conveyal.r5.labeling.SpeedLabeler;
@@ -21,6 +22,7 @@ import com.conveyal.r5.labeling.StreetClass;
 import com.conveyal.r5.labeling.TraversalPermissionLabeler;
 import com.conveyal.r5.labeling.TypeOfEdgeLabeler;
 import com.conveyal.r5.labeling.USTraversalPermissionLabeler;
+import com.conveyal.r5.osw.OswEdgeAttributes;
 import com.conveyal.r5.point_to_point.builder.SpeedConfig;
 import com.conveyal.r5.profile.StreetMode;
 import com.conveyal.r5.streets.EdgeStore.Edge;
@@ -50,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -222,6 +225,7 @@ public class StreetLayer implements Serializable, Cloneable {
                 case "sidewalk" -> new SidewalkTraversalPermissionLabeler(config);
                 case "noSidewalkCycling" -> new NoSidewalkCyclingTraversalPermissionLabeler(config);
                 case "noSteepWays" -> new NoSteepInclinesTraversalPermissionLabeler(config);
+                case OswTraversalPermissionLabeler.NAME -> new OswTraversalPermissionLabeler(config);
                 case null -> new USTraversalPermissionLabeler(config);
                 default -> throw new IllegalArgumentException(
                         "Unknown traversal permission labeler: " + config.traversalPermissionLabeler
@@ -318,9 +322,17 @@ public class StreetLayer implements Serializable, Cloneable {
         // keep track of ways that need to later become park and rides
         List<Way> parkAndRideWays = new ArrayList<>();
 
-        // TEMPORARY HACK: create a EdgeTraversalTimes object to hold costs from preprocessed OSM data, and indicate that
-        // we are loading them. Eventually this should be done based on configuration settings.
-        this.edgeStore.edgeTraversalTimes = new EdgeTraversalTimes(edgeStore);
+        if (isOswNetwork()) {
+            // Networks built from OpenSidewalks data record OSW attributes per edge, which are evaluated at routing
+            // time by pedestrian cost profiles. The LADOT generalized cost tags do not apply to OSW data.
+            LOG.info("Building pedestrian network from OpenSidewalks data, recording OSW edge attributes.");
+            this.edgeStore.oswAttributes = new OswEdgeAttributes();
+            this.edgeStore.edgeTraversalTimes = null;
+        } else {
+            // TEMPORARY HACK: create a EdgeTraversalTimes object to hold costs from preprocessed OSM data, and indicate
+            // that we are loading them. Eventually this should be done based on configuration settings.
+            this.edgeStore.edgeTraversalTimes = new EdgeTraversalTimes(edgeStore);
+        }
 
         for (Map.Entry<Long, Way> entry : osm.ways.entrySet()) {
             Way way = entry.getValue();
@@ -421,6 +433,15 @@ public class StreetLayer implements Serializable, Cloneable {
 
         //edgesPerWayHistogram.display();
         //pointsPerEdgeHistogram.display();
+        // Retain the mapping from street vertices to OSW node IDs, so results can be reported by OSW node.
+        // Interior geometry points of OSW edges have negative IDs and do not become vertices.
+        if (edgeStore.oswAttributes != null) {
+            vertexIndexForOsmNode.forEachEntry((osmNodeId, vertexIndex) -> {
+                if (osmNodeId > 0) edgeStore.oswAttributes.nodeIdForVertex.put(vertexIndex, osmNodeId);
+                return true;
+            });
+        }
+
         // Clear unneeded indexes, allow them to be gc'ed
         if (!saveVertexIndex)
             vertexIndexForOsmNode = null;
@@ -1181,6 +1202,15 @@ public class StreetLayer implements Serializable, Cloneable {
 
         // Compute edge length and check that it can be properly represented.
         int edgeLengthMillimeters = getEdgeLengthMillimeters(nodes);
+        // OSW edges carry a precomputed length, which we use so that R5 and other OSW consumers agree exactly.
+        // OSW ways always produce exactly one edge pair, so the way's length is the edge length.
+        double oswLengthMeters = Double.NaN;
+        if (edgeStore.oswAttributes != null) {
+            oswLengthMeters = parseDoubleOrNaN(way.getTag("length"));
+            if (oswLengthMeters >= 0 && oswLengthMeters * 1000 < Integer.MAX_VALUE) {
+                edgeLengthMillimeters = (int) Math.round(oswLengthMeters * 1000);
+            }
+        }
         if (edgeLengthMillimeters < 0) {
             LOG.warn("Street segment was too long to be represented, skipping.");
             return;
@@ -1225,6 +1255,18 @@ public class StreetLayer implements Serializable, Cloneable {
             }
         }
 
+        if (edgeStore.oswAttributes != null) {
+            Map<String, String> tags = new HashMap<>();
+            if (way.tags != null) way.tags.forEach(t -> tags.put(t.key, t.value));
+            edgeStore.oswAttributes.setPair(
+                    newEdge.edgeIndex / 2,
+                    tags,
+                    parseDoubleOrNaN(way.getTag("incline")),
+                    oswLengthMeters,
+                    curbRampStatus(way, nodes.get(0), nodes.get(nodes.size() - 1))
+            );
+        }
+
         // Now set characteristics that differ in the forward and backward directions.
         newEdge.setFlags(forwardFlags);
         newEdge.setSpeed(forwardSpeed);
@@ -1233,6 +1275,49 @@ public class StreetLayer implements Serializable, Cloneable {
         newEdge.setFlags(backFlags);
         newEdge.setSpeed(backwardSpeed);
 
+    }
+
+    /** @return true if this layer is being built from OpenSidewalks data, as indicated by the permission labeler. */
+    public boolean isOswNetwork () {
+        return permissionLabeler instanceof OswTraversalPermissionLabeler;
+    }
+
+    private static double parseDoubleOrNaN (String value) {
+        if (value == null) return Double.NaN;
+        try {
+            return Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Determine whether a (crossing) edge has curb ramps, matching the "curbramps" edge attribute used by Unweaver:
+     * a recognized explicit "curbramps" tag on the edge takes precedence. Otherwise OSW kerb nodes at both ends must
+     * be kerb=lowered or kerb=flush for the edge to have curb ramps. A raised or rolled kerb (or any other kerb value)
+     * at either end means no curb ramps. With no kerb information at one or both ends the status is unknown.
+     */
+    private static byte curbRampStatus (Way way, Node begin, Node end) {
+        byte explicit = OswEdgeAttributes.parseCurbRamps(way.getTag("curbramps"));
+        if (explicit != OswEdgeAttributes.CURB_RAMPS_UNKNOWN) return explicit;
+        String k0 = kerbValue(begin);
+        String k1 = kerbValue(end);
+        if (k0 != null && !isRampKerb(k0) || k1 != null && !isRampKerb(k1)) return OswEdgeAttributes.CURB_RAMPS_NO;
+        if (k0 != null && k1 != null) return OswEdgeAttributes.CURB_RAMPS_YES;
+        return OswEdgeAttributes.CURB_RAMPS_UNKNOWN;
+    }
+
+    /** @return the kerb type of a node, or null if the node is not a kerb. A kerb barrier without a type is "unknown". */
+    private static String kerbValue (Node node) {
+        if (node == null) return null;
+        String kerb = node.getTag("kerb");
+        if (kerb != null) return kerb.trim().toLowerCase(Locale.ROOT);
+        if (node.hasTag("barrier", "kerb")) return "unknown";
+        return null;
+    }
+
+    private static boolean isRampKerb (String kerb) {
+        return kerb.equals("lowered") || kerb.equals("flush");
     }
 
     public void indexStreets () {

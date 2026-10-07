@@ -1,0 +1,10 @@
+# Applies when building with -f docker/Dockerfile (BuildKit).
+# .git is kept on purpose: the R5 build derives its version from it.
+build/
+.gradle/
+.vscode/
+.idea/
+**/node_modules/
+**/__pycache__/
+datasets/
+*.log

@@ -4,6 +4,8 @@ import com.conveyal.gtfs.flex.OnDemand;
 import com.conveyal.gtfs.flex.OnDemandPlaceFilter;
 import com.conveyal.r5.api.util.LegMode;
 import com.conveyal.r5.common.SphericalDistanceLibrary;
+import com.conveyal.r5.osw.PedestrianCostTable;
+import com.conveyal.r5.osw.PedestrianCostTimeCalculator;
 import com.conveyal.r5.point_to_point.builder.PointToPointQuery;
 import com.conveyal.r5.profile.ProfileRequest;
 import com.conveyal.r5.profile.StreetMode;
@@ -36,6 +38,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.PriorityQueue;
 
 import static com.conveyal.r5.common.Util.notNullOrEmpty;
@@ -365,7 +368,15 @@ public class StreetRouter implements Cloneable {
             LOG.info("No street was found near the specified origin point of {}, {}.", lat, lon);
             return false;
         }
+        setOrigin(split, lat, lon);
+        return true;
+    }
 
+    /**
+     * Start the search at a point on the street network that the caller has already found, for the given requested
+     * coordinates. This allows choosing the edge to start on by other rules than the nearest one.
+     */
+    public void setOrigin (Split split, double lat, double lon) {
         originSplit = split;
         originLat = lat;
         originLon = lon;
@@ -378,16 +389,33 @@ public class StreetRouter implements Cloneable {
         EdgeStore.Edge  edge = streetLayer.edgeStore.getCursor(split.edge);
         int offStreetTime = split.distanceToEdge_mm / (int) (profileRequest.walkSpeed * 1000);
 
-        // Uses weight based on distance from end vertices, and speed on edge which depends on transport mode
-        float speedMetersPerSecond = edge.calculateSpeed(profileRequest, streetMode);
-        startState1.durationSeconds = (int) ((split.distance1_mm / 1000) / speedMetersPerSecond) + offStreetTime;
-        startState1.distance = split.distance1_mm + split.distanceToEdge_mm;
-        edge.advance();
+        PedestrianCostTable pedestrianCosts = (streetMode == StreetMode.WALK) ? getPedestrianCostTable() : null;
+        boolean startState0Passable = true, startState1Passable = true;
+        if (pedestrianCosts != null) {
+            // Cost the partial edges from the origin to each end vertex using the pedestrian cost profile.
+            int t1 = PedestrianCostTimeCalculator.roundPartialSeconds(
+                    pedestrianCosts.partialSeconds(edge, profileRequest.walkSpeed, split.distance1_mm / 1000d));
+            startState1Passable = t1 >= 0;
+            startState1.durationSeconds = t1 + offStreetTime;
+            startState1.distance = split.distance1_mm + split.distanceToEdge_mm;
+            edge.advance();
+            int t0 = PedestrianCostTimeCalculator.roundPartialSeconds(
+                    pedestrianCosts.partialSeconds(edge, profileRequest.walkSpeed, split.distance0_mm / 1000d));
+            startState0Passable = t0 >= 0;
+            startState0.durationSeconds = t0 + offStreetTime;
+            startState0.distance = split.distance0_mm + split.distanceToEdge_mm;
+        } else {
+            // Uses weight based on distance from end vertices, and speed on edge which depends on transport mode
+            float speedMetersPerSecond = edge.calculateSpeed(profileRequest, streetMode);
+            startState1.durationSeconds = (int) ((split.distance1_mm / 1000) / speedMetersPerSecond) + offStreetTime;
+            startState1.distance = split.distance1_mm + split.distanceToEdge_mm;
+            edge.advance();
 
-        // Speed can be different on opposite sides of the same street
-        speedMetersPerSecond = edge.calculateSpeed(profileRequest, streetMode);
-        startState0.durationSeconds = (int) ((split.distance0_mm / 1000) / speedMetersPerSecond) + offStreetTime;
-        startState0.distance = split.distance0_mm + split.distanceToEdge_mm;
+            // Speed can be different on opposite sides of the same street
+            speedMetersPerSecond = edge.calculateSpeed(profileRequest, streetMode);
+            startState0.durationSeconds = (int) ((split.distance0_mm / 1000) / speedMetersPerSecond) + offStreetTime;
+            startState0.distance = split.distance0_mm + split.distanceToEdge_mm;
+        }
 
         // FIXME Below is reversing the vertices, but then aren't the weights, times, distances wrong? Why are we even doing this?
         if (profileRequest.reverseSearch) {
@@ -402,13 +430,17 @@ public class StreetRouter implements Cloneable {
 
         // These initial states are not recorded as bestStates, they will be added when they come out of the queue.
         // FIXME but wait - we are putting them in the bestStates for some reason.
-        queue.add(startState0);
-        queue.add(startState1);
-        bestStatesAtEdge.put(startState0.backEdge, startState0);
-        bestStatesAtEdge.put(startState1.backEdge, startState1);
+        // With a pedestrian cost profile, the origin's edge may be impassable in one or both directions.
+        if (startState0Passable) {
+            queue.add(startState0);
+            bestStatesAtEdge.put(startState0.backEdge, startState0);
+        }
+        if (startState1Passable) {
+            queue.add(startState1);
+            bestStatesAtEdge.put(startState1.backEdge, startState1);
+        }
 
         maxAbsOriginLat = originSplit.fixedLat;
-        return true;
     }
 
     public void setOrigin (int fromVertex) {
@@ -496,6 +528,16 @@ public class StreetRouter implements Cloneable {
     public void route () {
 
         long startTime = System.currentTimeMillis();
+
+        // Apply any pedestrian cost profile in the request to walk traversals (replacing one from an earlier route()
+        // call on this router, which may have had a different profile or none).
+        if (timeCalculator instanceof PedestrianCostTimeCalculator wrapped) {
+            timeCalculator = wrapped.getBase();
+        }
+        PedestrianCostTable pedestrianCosts = getPedestrianCostTable();
+        if (pedestrianCosts != null) {
+            timeCalculator = new PedestrianCostTimeCalculator(timeCalculator, pedestrianCosts);
+        }
 
         final int distanceLimitMm;
         //This is needed otherwise timeLimitSeconds gets changed and
@@ -748,6 +790,20 @@ public class StreetRouter implements Cloneable {
      * Get a single best state at a vertex. NB this should not be used for propagating to samples, as you need to apply
      * turn costs/restrictions during propagation.
      */
+    /**
+     * @return the evaluated pedestrian cost profile for this router's request, or null if the request has none.
+     * @throws IllegalArgumentException if the request has a profile but the network was not built from OSW data.
+     */
+    public PedestrianCostTable getPedestrianCostTable () {
+        if (profileRequest == null || profileRequest.pedestrianCost == null) return null;
+        EdgeStore edgeStore = streetLayer.edgeStore;
+        if (edgeStore.oswAttributes == null) {
+            throw new IllegalArgumentException(
+                    "A pedestrian cost profile was requested, but this network was not built from OpenSidewalks data.");
+        }
+        return edgeStore.oswAttributes.costTable(profileRequest.pedestrianCost.spec(), edgeStore);
+    }
+
     public State getStateAtVertex (int vertexIndex) {
         State ret = null;
 
@@ -812,7 +868,8 @@ public class StreetRouter implements Cloneable {
 
                         // figure out the turn cost
                         int turnCost = this.timeCalculator.turnTimeSeconds(s.backEdge, split.edge, s.streetMode);
-                        int traversalCost = (int) Math.round(split.distance0_mm / 1000d / e.calculateSpeed(profileRequest, s.streetMode));
+                        int traversalCost = partialTraversalSeconds(e, split.distance0_mm, s.streetMode);
+                        if (traversalCost < 0) return null; // Impassable under the pedestrian cost profile.
 
                         // TODO length of perpendicular
                         ret.incrementTimeInSeconds(turnCost + traversalCost);
@@ -820,6 +877,7 @@ public class StreetRouter implements Cloneable {
 
                         return ret;
                     })
+                    .filter(Objects::nonNull)
                     .forEach(candidateStates::add);
         }
 
@@ -841,7 +899,8 @@ public class StreetRouter implements Cloneable {
                 State ret = new State(-1, split.edge + 1, state);
                 ret.streetMode = state.streetMode;
                 int turnCost = this.timeCalculator.turnTimeSeconds(state.backEdge, split.edge + 1, state.streetMode);
-                int traversalCost = (int) Math.round(split.distance1_mm / 1000d / e.calculateSpeed(profileRequest, state.streetMode));
+                int traversalCost = partialTraversalSeconds(e, split.distance1_mm, state.streetMode);
+                if (traversalCost < 0) continue; // Impassable under the pedestrian cost profile.
                 ret.distance += split.distance1_mm;
                 // TODO length of perpendicular
                 ret.incrementTimeInSeconds(turnCost + traversalCost);
@@ -852,6 +911,19 @@ public class StreetRouter implements Cloneable {
         return candidateStates.stream()
                 .reduce((s0, s1) -> s0.getRoutingVariable(quantityToMinimize) < s1.getRoutingVariable(quantityToMinimize) ? s0 : s1)
                 .orElse(null);
+    }
+
+    /**
+     * Time to traverse part of the edge at the cursor, from its start to a destination split point. Uses the
+     * pedestrian cost profile for walking when the request has one (returning a negative value if impassable).
+     */
+    private int partialTraversalSeconds (EdgeStore.Edge edge, int distance_mm, StreetMode mode) {
+        PedestrianCostTable pedestrianCosts = (mode == StreetMode.WALK) ? getPedestrianCostTable() : null;
+        if (pedestrianCosts != null) {
+            return PedestrianCostTimeCalculator.roundPartialSeconds(
+                    pedestrianCosts.partialSeconds(edge, profileRequest.walkSpeed, distance_mm / 1000d));
+        }
+        return (int) Math.round(distance_mm / 1000d / edge.calculateSpeed(profileRequest, mode));
     }
 
     public Split getDestinationSplit() {

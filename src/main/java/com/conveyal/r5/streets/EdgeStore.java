@@ -4,6 +4,7 @@ import com.conveyal.osmlib.Node;
 import com.conveyal.r5.common.DirectionUtils;
 import com.conveyal.r5.common.GeometryUtils;
 import com.conveyal.r5.labeling.StreetClass;
+import com.conveyal.r5.osw.OswEdgeAttributes;
 import com.conveyal.r5.profile.ProfileRequest;
 import com.conveyal.r5.profile.StreetMode;
 import com.conveyal.r5.rastercost.CostField;
@@ -190,6 +191,12 @@ public class EdgeStore implements Serializable {
      */
     public List<CostField> costFields;
 
+    /**
+     * OpenSidewalks attributes of each edge pair, present only when the network was built from OSW data. These are
+     * evaluated per request by pedestrian cost profiles (see PedestrianCostProfile). Null for ordinary OSM networks.
+     */
+    public OswEdgeAttributes oswAttributes;
+
     /** The street layer of a transport network that the edges in this edgestore make up. */
     public StreetLayer layer;
 
@@ -225,6 +232,7 @@ public class EdgeStore implements Serializable {
         turnRestrictionsReverse = new TIntIntHashMultimap();
         edgeTraversalTimes = null;
         costFields = null;
+        oswAttributes = null;
     }
 
     /**
@@ -378,6 +386,10 @@ public class EdgeStore implements Serializable {
         if (edgeTraversalTimes != null) {
             edgeTraversalTimes.addOneNeutralEdge();
             edgeTraversalTimes.addOneNeutralEdge();
+        }
+
+        if (oswAttributes != null) {
+            oswAttributes.addNeutralPair();
         }
 
         Edge edge = getCursor(forwardEdgeIndex);
@@ -568,6 +580,11 @@ public class EdgeStore implements Serializable {
             speeds.set(foreEdge, otherStore.speeds.get(otherForeEdge));
             speeds.set(backEdge, otherStore.speeds.get(otherBackEdge));
             streetClasses.set(pairIndex, otherStore.streetClasses.get(other.pairIndex));
+            // Edges split from OSW edges (e.g. to link stops or origins) keep the OSW attributes of the original.
+            // A scenario's attributes extend those of its baseline, so pair indexes from either store are valid here.
+            if (oswAttributes != null && otherStore.oswAttributes != null) {
+                oswAttributes.copyPair(other.pairIndex, pairIndex);
+            }
         }
 
         public void copyPairGeometry(Edge other) {
@@ -689,6 +706,11 @@ public class EdgeStore implements Serializable {
 
             s1.streetMode = streetMode;
             int traverseTimeSeconds = timeCalculator.traversalTimeSeconds(this, streetMode, req);
+            // A negative traversal time means the time calculator considers the edge impassable for this request,
+            // e.g. a pedestrian cost profile excluding edges steeper than the user's limits.
+            if (traverseTimeSeconds < 0) {
+                return null;
+            }
 
             // This was rounding up, now truncating ... maybe change back for consistency?
             // int roundedTime = (int) Math.ceil(time);
@@ -1299,6 +1321,9 @@ public class EdgeStore implements Serializable {
         copy.turnRestrictionsReverse = turnRestrictionsReverse;
         if (edgeTraversalTimes != null) {
             copy.edgeTraversalTimes = edgeTraversalTimes.extendOnlyCopy(copy);
+        }
+        if (oswAttributes != null) {
+            copy.oswAttributes = oswAttributes.extendOnlyCopy();
         }
         return copy;
     }

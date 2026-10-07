@@ -10,6 +10,8 @@ import org.locationtech.jts.geom.Envelope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.function.IntPredicate;
+
 /**
  * Represents a potential split point along an existing edge, retaining some geometric calculation state so that
  * once the best candidate is found more detailed calculations can continue.
@@ -70,6 +72,15 @@ public class Split {
      */
     public static Split find (double lat, double lon, double searchRadiusMeters, StreetLayer streetLayer,
                               StreetMode streetMode) {
+        return find(lat, lon, searchRadiusMeters, streetLayer, streetMode, null);
+    }
+
+    /**
+     * As {@link #find(double, double, double, StreetLayer, StreetMode)}, but considering only edge pairs accepted by
+     * the filter, which is given the index of the forward edge of each pair. A null filter accepts every pair.
+     */
+    public static Split find (double lat, double lon, double searchRadiusMeters, StreetLayer streetLayer,
+                              StreetMode streetMode, IntPredicate edgeFilter) {
 
         // After this conversion, the entire geometric calculation is happening in fixed precision int degrees.
         int fixedLat = VertexStore.floatingDegreesToFixed(lat);
@@ -101,6 +112,7 @@ public class Split {
             // These edges allow all modes to traverse, but may be connected to roads with more restrictive permissions.
             // On a given edge pair both directions will have the same flag.
             if (edge.getFlag(EdgeStore.EdgeFlag.LINK)) return true;
+            if (edgeFilter != null && !edgeFilter.test(e)) return true;
 
             // If either direction of the current edge doesn't allow the specified mode of travel, skip it.
             // It is arguably better to skip it only if BOTH directions forbid the specified mode (see commented block

@@ -1,0 +1,286 @@
+:root {
+  --ink: #16212b;
+  --muted: #56636f;
+  --rule: #d8dee4;
+  --panel: #ffffff;
+  --canvas: #eef1f4;
+  --access: #1f5ba8;       /* the blue of the international symbol of access */
+  --access-tint: #e6eef8;
+  --barrier: #c2185b;      /* paths the traveller can't use */
+  --unreached: #9aa6b2;
+  --panel-width: 340px;
+  --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--canvas);
+  color: var(--ink);
+  font: 400 15px/1.45 var(--font);
+}
+
+.app {
+  position: relative;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+}
+
+/* Panel */
+
+.panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--panel-width);
+  overflow-y: auto;
+  background: var(--panel);
+  border-right: 1px solid var(--rule);
+  padding: 20px 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.map .maplibregl-ctrl-top-right,
+.map .maplibregl-ctrl-bottom-right { right: 0; }
+
+@media (min-width: 761px) {
+  .map { left: var(--panel-width); }
+}
+
+.panel-head h1 {
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+
+.quiet { color: var(--muted); margin: 0; }
+.small { font-size: 13px; }
+
+.group { display: flex; flex-direction: column; gap: 8px; }
+
+.group-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+select {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.fields { display: flex; flex-direction: column; gap: 14px; }
+
+.field.range {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.field.range label { color: var(--ink); }
+
+.field.range output {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.field.range input { grid-column: 1 / -1; width: 100%; accent-color: var(--access); margin: 4px 0 0; }
+
+.field.check, .toggle {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.field.check input, .toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--access);
+  flex: none;
+}
+
+/* Switches, as on the Walksheds page */
+
+input[role="switch"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 36px !important;
+  height: 20px !important;
+  margin: 1px 0 0;
+  border-radius: 10px;
+  background: var(--unreached);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+input[role="switch"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--panel);
+  transition: transform 0.15s;
+}
+
+input[role="switch"]:checked { background: var(--access); }
+input[role="switch"]:checked::after { transform: translateX(16px); }
+input[role="switch"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+input[role="switch"]:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.field.range input.number {
+  grid-column: auto;
+  margin: 0;
+  width: 5.5em;
+  font: inherit;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding: 2px 4px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input[role="switch"], input[role="switch"]::after { transition: none; }
+}
+
+.result {
+  border-left: 4px solid var(--access);
+  background: var(--access-tint);
+  padding: 10px 12px;
+  border-radius: 0 6px 6px 0;
+}
+
+.result p { margin: 0; }
+.result.error { border-left-color: var(--barrier); background: #fbe9f0; }
+.result strong { font-size: 19px; }
+
+.provenance summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.provenance dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+.provenance dt { color: var(--muted); }
+.provenance dd { margin: 0; }
+
+button.id {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--access);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+:focus-visible {
+  outline: 3px solid var(--access);
+  outline-offset: 2px;
+}
+
+/* Legend */
+
+.legend {
+  position: absolute;
+  right: 12px;
+  bottom: 32px;
+  margin: 0;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  min-width: 190px;
+}
+
+.legend figcaption { font-weight: 700; margin-bottom: 6px; }
+
+.bands {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
+.bands li {
+  border-top: 8px solid var(--c);
+  padding-top: 3px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.keys { list-style: none; margin: 0; padding: 0; display: flex; gap: 14px; flex-wrap: wrap; }
+.keys li { display: flex; align-items: center; gap: 6px; }
+
+.swatch { display: inline-block; width: 22px; height: 0; border-top: 3px solid; }
+.swatch.unusable { border-top: 3px dashed var(--barrier); }
+.swatch.unreached { border-top-color: var(--unreached); border-top-width: 2px; }
+.swatch.snap { width: 10px; height: 10px; border: 2px solid var(--ink); border-radius: 50%; background: var(--panel); }
+
+/* Origin marker */
+
+.origin {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 6px solid var(--ink);
+  box-shadow: 0 0 0 2px var(--panel);
+}
+
+/* Phones: the panel becomes a bottom sheet */
+
+@media (max-width: 760px) {
+  .panel {
+    top: auto;
+    width: 100%;
+    max-height: 48vh;
+    border-right: 0;
+    border-top: 1px solid var(--rule);
+    border-radius: 12px 12px 0 0;
+    padding: 16px 16px 24px;
+  }
+  .map { bottom: 48vh; }
+  .legend { top: 12px; bottom: auto; right: 56px; left: 12px; min-width: 0; } /* clear of the zoom buttons */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}

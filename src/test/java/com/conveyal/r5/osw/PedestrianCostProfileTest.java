@@ -88,11 +88,12 @@ public class PedestrianCostProfileTest {
         spec.evaluate(sidewalk, 0.2, 3, OswEdgeAttributes.CURB_RAMPS_UNKNOWN, out);
         assertTrue(out[0] > 0);
 
-        // Missing incline is treated as flat.
+        // With no incline the edge is walked at plain speed, however long and whatever the limits. That is not the
+        // same as flat: level ground is a little slower than the ideal grade.
         spec.evaluate(sidewalk, Double.NaN, 100, OswEdgeAttributes.CURB_RAMPS_UNKNOWN, out);
-        double flat = out[0];
+        assertEquals(1.0, out[0]);
         spec.evaluate(sidewalk, 0, 100, OswEdgeAttributes.CURB_RAMPS_UNKNOWN, out);
-        assertEquals(flat, out[0]);
+        assertTrue(out[0] < 1.0);
 
         // Crossings: 30 s delay added to travel time (Unweaver's overwrite bug fixed), curb ramps required.
         Map<String, String> crossing = Map.of("highway", "footway", "footway", "crossing");

@@ -54,7 +54,9 @@ class TestPedestrianProfile(unittest.TestCase):
         self.assertIsNone(s.edge_seconds(dict(sidewalk, incline=0.09), 1.3))
         self.assertIsNone(s.edge_seconds(dict(sidewalk, incline=-0.11), 1.3))
         self.assertIsNotNone(s.edge_seconds(dict(sidewalk, incline=0.2, length=3.0), 1.3))
-        self.assertEqual(s.edge_seconds(sidewalk, 1.3), s.edge_seconds(dict(sidewalk, incline=0.0), 1.3))
+        # With no incline the edge is walked at plain speed, which is not the same as flat.
+        self.assertAlmostEqual(100 / 1.3, s.edge_seconds(sidewalk, 1.3), places=9)
+        self.assertGreater(s.edge_seconds(dict(sidewalk, incline=0.0), 1.3), 100 / 1.3)
         crossing = {"highway": "footway", "footway": "crossing", "length": 20.0}
         self.assertAlmostEqual(45.38461538461539, s.edge_seconds(dict(crossing, curbramps=1), 1.3), places=9)
         self.assertIsNone(s.edge_seconds(crossing, 1.3))

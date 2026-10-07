@@ -33,8 +33,8 @@ import java.util.zip.ZipFile;
  * Mapping:
  *  - Each OSW node becomes an OSM node whose tags are the node's properties (including barrier=kerb / kerb=*).
  *  - Each OSW edge becomes exactly one OSM way running _u_id -> (interior geometry points) -> _v_id, with the edge's
- *    properties as tags. Interior geometry points become untagged nodes with negative IDs. Because OSW edges only
- *    meet at their end nodes, R5 will produce exactly one edge pair per OSW edge.
+ *    properties as tags. Interior geometry points become untagged nodes with IDs from INTERIOR_ID_BASE up. Because
+ *    OSW edges only meet at their end nodes, R5 will produce exactly one edge pair per OSW edge.
  *  - Points, lines, polygons and zones are ignored.
  *
  * Input may be a .zip file or a directory containing *.nodes.geojson and *.edges.geojson, or the path to a single
@@ -47,6 +47,12 @@ public class OswReader {
 
     /** Assigned (non-numeric) OSW IDs are numbered from here, well above typical numeric OSW/OSM IDs. */
     private static final long ASSIGNED_ID_BASE = 1L << 52;
+
+    /**
+     * IDs from here up are given to the interior geometry points of edges, which are not OSW nodes. They are positive
+     * because the OSM store's keys must not be negative.
+     */
+    public static final long INTERIOR_ID_BASE = 1L << 53;
 
     /** Same precision Unweaver uses to derive node IDs from coordinates when no node IDs are given. */
     private static final int COORDINATE_KEY_PRECISION = 7;
@@ -62,7 +68,7 @@ public class OswReader {
 
     private long nextAssignedNodeId = ASSIGNED_ID_BASE;
     private long nextAssignedEdgeId = ASSIGNED_ID_BASE;
-    private long nextInteriorNodeId = -1;
+    private long nextInteriorNodeId = INTERIOR_ID_BASE;
 
     private int nNodes, nEdges, nSkippedEdges;
 
@@ -247,7 +253,7 @@ public class OswReader {
         nodes[0] = u;
         nodes[n - 1] = v;
         for (int i = 1; i < n - 1; i++) {
-            long interior = nextInteriorNodeId--;
+            long interior = nextInteriorNodeId++;
             osm.writeNode(interior, new Node(coords.get(i).get(1).asDouble(), coords.get(i).get(0).asDouble()));
             nodes[i] = interior;
         }

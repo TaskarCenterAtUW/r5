@@ -23,6 +23,7 @@ import com.conveyal.r5.labeling.TraversalPermissionLabeler;
 import com.conveyal.r5.labeling.TypeOfEdgeLabeler;
 import com.conveyal.r5.labeling.USTraversalPermissionLabeler;
 import com.conveyal.r5.osw.OswEdgeAttributes;
+import com.conveyal.r5.osw.OswReader;
 import com.conveyal.r5.point_to_point.builder.SpeedConfig;
 import com.conveyal.r5.profile.StreetMode;
 import com.conveyal.r5.streets.EdgeStore.Edge;
@@ -434,10 +435,12 @@ public class StreetLayer implements Serializable, Cloneable {
         //edgesPerWayHistogram.display();
         //pointsPerEdgeHistogram.display();
         // Retain the mapping from street vertices to OSW node IDs, so results can be reported by OSW node.
-        // Interior geometry points of OSW edges have negative IDs and do not become vertices.
+        // Interior geometry points of OSW edges have IDs in a range of their own and do not become vertices.
         if (edgeStore.oswAttributes != null) {
             vertexIndexForOsmNode.forEachEntry((osmNodeId, vertexIndex) -> {
-                if (osmNodeId > 0) edgeStore.oswAttributes.nodeIdForVertex.put(vertexIndex, osmNodeId);
+                if (osmNodeId < OswReader.INTERIOR_ID_BASE) {
+                    edgeStore.oswAttributes.nodeIdForVertex.put(vertexIndex, osmNodeId);
+                }
                 return true;
             });
         }

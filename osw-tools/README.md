@@ -280,7 +280,8 @@ each and how closely the two agree:
 - **Compatibility mode**, on by default, attaches a point at the place on that edge Walksheds would choose: the
   nearest in longitude and latitude, which at Seattle's latitude can be 10 m from the nearest on the ground. Turn it
   off with the environment variable `WALKSHEDS_COMPAT=0`, or `--walksheds-compat false`, to attach at the nearest
-  point on the ground. The option takes precedence over the variable.
+  place on the ground. The option takes precedence over the variable. Neither mode uses R5's own way of attaching a
+  point, which is less accurate than either: see DIFFERENCES.md.
 - Edge features have the OSW properties with `:` in keys replaced by `_`, but not the `curbs`, `lowered_curbs` and
   `flush_curbs` counts, and `_u` / `_v` have no elevation part.
 - Times are R5's, with each edge rounded up to a whole second.

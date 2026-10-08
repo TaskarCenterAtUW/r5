@@ -180,16 +180,14 @@ class WalkshedsApi {
     }
 
     /**
-     * Where a point attaches to the network: on an edge within MAX_SNAP_METERS that the traveller can use in at least
-     * one direction, or null if there is none. In compatibility mode the edge and the point on it are chosen as
-     * Walksheds chooses them. Otherwise it is the nearest point on the nearest usable edge.
+     * Where a point attaches to the network: on the nearest edge within MAX_SNAP_METERS that the traveller can use in
+     * at least one direction, or null if there is none. In compatibility mode the place on that edge is the one
+     * Walksheds would choose. Otherwise it is the nearest on the ground.
      */
     private Split snap (StreetRouter router, double lat, double lon) {
         PedestrianCostTable table = router.getPedestrianCostTable();
         IntPredicate usable = e -> !Double.isNaN(table.speedFactor(e)) || !Double.isNaN(table.speedFactor(e + 1));
-        return server.walkshedsCompat
-                ? WalkshedsSnapping.find(lat, lon, MAX_SNAP_METERS, streets, usable)
-                : Split.find(lat, lon, MAX_SNAP_METERS, streets, StreetMode.WALK, usable);
+        return WalkshedsSnapping.find(lat, lon, MAX_SNAP_METERS, streets, usable, server.walkshedsCompat);
     }
 
     // ------------------------------------------------------------------------------------------------ Reachable tree

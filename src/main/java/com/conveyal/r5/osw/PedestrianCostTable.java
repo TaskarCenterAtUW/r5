@@ -44,12 +44,14 @@ public class PedestrianCostTable {
         int e = edge.getEdgeIndex();
         double oswLength = attributes.lengthMeters(e);
         double lengthForLimits = Double.isNaN(oswLength) ? edge.getLengthM() : oswLength;
-        spec.evaluate(attributes.tags(e), attributes.incline(e), lengthForLimits, attributes.curbRamps(e), out);
+        // The forward edge of each pair is the even one, and carries the incline as mapped.
+        spec.evaluate(attributes.tags(e), attributes.incline(e), attributes.incline(e & ~1), lengthForLimits,
+                attributes.curbRamps(e), out);
     }
 
     /**
      * @return the cost in seconds of traversing the edge at the cursor walking at baseSpeed, or NaN if the edge is
-     *         impassable. Uses the edge's current length, so partial (split) edges are costed proportionally.
+     *         impassable. Partial (split) edges are costed in proportion to their length.
      */
     public double seconds (EdgeStore.Edge edge, double baseSpeed) {
         return seconds(edge, baseSpeed, edge.getLengthM());
@@ -65,6 +67,12 @@ public class PedestrianCostTable {
         if (e < speedFactor.length) {
             factor = speedFactor[e];
             delay = delaySeconds[e];
+            // The dataset's own length for the edge is used where it gives one, as Unweaver does. R5's is measured
+            // from the geometry and differs by a fraction of a percent. Edges added since the table was built are
+            // parts of split edges, which have no length of their own in the dataset.
+            double oswLength = attributes.lengthMeters(e);
+            double r5Length = edge.getLengthM();
+            if (!Double.isNaN(oswLength) && r5Length > 0) lengthMeters *= oswLength / r5Length;
         } else {
             double[] out = new double[2];
             evaluate(edge, out);

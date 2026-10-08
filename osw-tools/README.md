@@ -89,8 +89,8 @@ Options:
 ```
 
 - `exact` gives each reached OSW node's cost in seconds, unrounded. These are the numbers to compare with other tools.
-- `router` gives the same walkshed from R5's real router. It works in whole seconds and rounds each edge up, so it
-  is a few seconds slower over a path.
+- `router` gives the same walkshed from R5's real router, in whole seconds. It keeps fractions of a second along a
+  path and rounds the total up, so it is under a second above `exact`.
 - Node and edge IDs are the OSW `_id` values from your data.
 
 In the example, node `3` is missing: the only way there is 10% uphill, past the default 8.5% limit. Node `31` is also
@@ -277,9 +277,14 @@ each and how closely the two agree:
   are closed at 1. Rules they leave out are listed below.
 - Points snap to the nearest edge within 50 m that the traveller can use in at least one direction, and are
   `InvalidWaypoint` if there is none. (50 m is what the deployed Walksheds appears to use; Unweaver's default is 30.)
+- **Compatibility mode**, on by default, attaches a point at the place on that edge Walksheds would choose: the
+  nearest in longitude and latitude, which at Seattle's latitude can be 10 m from the nearest on the ground. Turn it
+  off with the environment variable `WALKSHEDS_COMPAT=0`, or `--walksheds-compat false`, to attach at the nearest
+  place on the ground. The option takes precedence over the variable. Neither mode uses R5's own way of attaching a
+  point, which is less accurate than either: see DIFFERENCES.md.
 - Edge features have the OSW properties with `:` in keys replaced by `_`, but not the `curbs`, `lowered_curbs` and
   `flush_curbs` counts, and `_u` / `_v` have no elevation part.
-- Times are R5's, with each edge rounded up to a whole second.
+- Costs are unrounded, to a thousandth of a second, as in Walksheds.
 
 Rules in the Walksheds cost function that the profiles leave out, and why:
 
@@ -337,7 +342,10 @@ page from a folder instead of the jar, so you can edit `src/main/resources/osw-d
   Edges with no OSW attributes at all (transit links, scenario-added streets) are walked at base speed.
 - `inclineSpeed`: Tobler's hiking function, with speed falling to `base / divisor` at the user's limits. Edges longer
   than `minLengthForLimits` metres that are steeper than the limits are impassable. An edge with a missing or
-  non-numeric `incline` is walked at the layer's plain speed, with no limit applied.
+  non-numeric `incline` is walked at the layer's plain speed, with no limit applied. `direction` says which incline
+  an edge walked against the way it is mapped has: `"travel"` (the default) reverses its sign, so uphill becomes
+  downhill; `"mapped"` uses it as mapped, so the edge costs the same both ways. The Walksheds profiles use
+  `"mapped"`, because the Walksheds service does.
 - `delaySeconds` is added to travel time. (In `cost-dynamic.py` the delay is overwritten. That bug is fixed here.)
 - `requireCurbRamps`: the edge needs curb ramps. R5 derives this from the OSW kerb nodes at its two ends, as the
   TDEI Walksheds service does: the edge has ramps unless a kerb stands in the way at either end, meaning any kerb
@@ -382,14 +390,15 @@ UNWEAVER_DIR=~/GitHub/unweaver UNWEAVER_PYTHON=~/venvs/unweaver/bin/python \
   '{"uphill": 0.083, "downhill": 0.1, "avoid_curbs": true}' 1.3
 ```
 
-This prepares the dataset for Unweaver, builds its graph (`--changes-sign incline`), queries Unweaver's
+This prepares the dataset for Unweaver, builds its graph (`--changes-sign incline`, which suits profiles whose
+`inclineSpeed.direction` is `"travel"`), queries Unweaver's
 `shortest_path_tree` and `reachable_tree` at the origin node, runs `OswWalkshedMain`, and compares them:
 
 1. **Provenance**: same profileId, runSpecId and base speed on both sides.
 2. **Exact node costs**: R5's unrounded Dijkstra (double precision, OSW lengths) against Unweaver's node costs. This
    should be identical: on the test fixture the difference is 0 s across every origin and parameter set tried.
-3. **Router node costs** (reported, not pass/fail): R5's real router works in whole seconds and rounds each edge up,
-   so it is slower than Unweaver by up to about a second per edge on the path.
+3. **Router node costs** (reported, not pass/fail): R5's real router reports whole seconds, rounding each path's
+   total up, so it is above Unweaver by under a second.
 4. **Reachable edges**: Unweaver's `reachable_tree` edges against R5's fully or partially reachable edges.
 
 To use a profile with Unweaver directly, add `"static": {"profile_path": "/abs/path/profile.json"}` to the Unweaver
@@ -400,7 +409,8 @@ has no `static` arguments, so set `PEDESTRIAN_PROFILE` or put `pedestrian_profil
 ## Known limitations
 
 - **Walk only.** Bike and car are unaffected. In a bike search on an OSW network, walked segments use the profile.
-- **Whole seconds.** R5 accumulates whole seconds per edge (see above). The exact comparison bypasses this.
+- **Whole seconds.** With a pedestrian cost profile R5's router keeps fractions of a second along a path, but the
+  rest of R5 reads its times in whole seconds, rounded up once per path.
 - **Analysis backend not wired yet.** `fromOsw` is used by tests and `OswWalkshedMain`. Uploading OSW through the
   backend, choosing profiles in the UI, and stamping profile/run-spec IDs into regional result metadata are still
   to do. Requests to a worker can already carry `pedestrianCost`.

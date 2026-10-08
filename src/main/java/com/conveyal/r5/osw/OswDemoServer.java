@@ -40,11 +40,13 @@ import java.util.Map;
  *
  * Usage:
  *   OswDemoServer --osw DATASET [--profiles DIR] [--port 8080] [--static DIR]
- *                 [--dataset-id ID] [--walksheds-profile KEY]
+ *                 [--dataset-id ID] [--walksheds-profile KEY] [--walksheds-compat true|false]
  *
  * --profiles defaults to osw-tools/profiles. Profile files are re-read on every request, so edits show up on reload.
  * --static serves the page from a directory instead of the jar, for working on the page without rebuilding.
  * --dataset-id and --walksheds-profile configure the Walksheds-compatible API under /api/v1 (see WalkshedsApi).
+ * --walksheds-compat, or the environment variable WALKSHEDS_COMPAT where the option is not given, says whether that
+ * API attaches points to the network as Walksheds does (the default) or as R5 does.
  *
  * API (all JSON):
  *   GET  /api/info                                  network summary, R5 version, available profiles
@@ -68,6 +70,12 @@ public class OswDemoServer {
     String walkshedsDatasetId;
     String walkshedsProfile = "ws-prod";
 
+    /**
+     * Whether the Walksheds-compatible API copies what Walksheds does where R5 would otherwise do something more
+     * accurate: at present, where a point attaches to the network (see WalkshedsSnapping).
+     */
+    boolean walkshedsCompat = !isOff(System.getenv("WALKSHEDS_COMPAT"));
+
     public OswDemoServer (String oswPath, File profilesDir) throws IOException {
         TransportNetworkConfig config = new TransportNetworkConfig();
         // Keep small disconnected pieces of the network, as Unweaver does.
@@ -86,7 +94,7 @@ public class OswDemoServer {
         for (int i = 0; i + 1 < args.length; i += 2) opts.put(args[i].replaceFirst("^--", ""), args[i + 1]);
         if (!opts.containsKey("osw")) {
             System.err.println("Usage: OswDemoServer --osw DATASET [--profiles DIR] [--port 8080] [--static DIR] "
-                    + "[--dataset-id ID] [--walksheds-profile KEY]");
+                    + "[--dataset-id ID] [--walksheds-profile KEY] [--walksheds-compat true|false]");
             System.exit(1);
         }
         File profiles = new File(opts.getOrDefault("profiles", "osw-tools/profiles"));
@@ -97,9 +105,16 @@ public class OswDemoServer {
         OswDemoServer server = new OswDemoServer(opts.get("osw"), profiles);
         if (opts.containsKey("dataset-id")) server.walkshedsDatasetId = opts.get("dataset-id");
         if (opts.containsKey("walksheds-profile")) server.walkshedsProfile = opts.get("walksheds-profile");
+        if (opts.containsKey("walksheds-compat")) server.walkshedsCompat = !isOff(opts.get("walksheds-compat"));
+        LOG.info("Walksheds compatibility mode is {}.", server.walkshedsCompat ? "on" : "off");
         int port = Integer.parseInt(opts.getOrDefault("port", "8080"));
         server.start(port, opts.get("static"));
         System.out.printf("OSW demo running at http://localhost:%d%n", port);
+    }
+
+    /** Whether a setting that is on unless turned off has been turned off. */
+    private static boolean isOff (String value) {
+        return value != null && List.of("0", "false", "no", "off").contains(value.trim().toLowerCase());
     }
 
     public Service start (int port, String staticDir) {
@@ -277,7 +292,7 @@ public class OswDemoServer {
      * Every stretch of the network reached by a finished search, each walked in the direction that reaches it first
      * and cut short where the time runs out.
      */
-    List<Piece> reachedPieces (StreetRouter router, PedestrianCostTable table, int limit) {
+    List<Piece> reachedPieces (StreetRouter router, PedestrianCostTable table, double limit) {
         List<Piece> pieces = new ArrayList<>();
         Split split = router.getOriginSplit();
         double walkSpeed = router.profileRequest.walkSpeed;
@@ -287,8 +302,8 @@ public class OswDemoServer {
             if (attrs.tags(e) == null) continue;
             fwd.seek(e);
             back.seek(e + 1);
-            int tFwd = router.getTravelTimeToVertex(fwd.getFromVertex());
-            int tBack = router.getTravelTimeToVertex(back.getFromVertex());
+            double tFwd = router.getExactTravelTimeToVertex(fwd.getFromVertex());
+            double tBack = router.getExactTravelTimeToVertex(back.getFromVertex());
             if (e == split.edge) {
                 // The search starts partway along this edge, so it is walked outward from that point in both
                 // directions (as the router does), and only otherwise inward from its ends.
@@ -337,22 +352,21 @@ public class OswDemoServer {
      * of meters, starting at tStart seconds and cut short where the time runs out. Null if the start is unreached or
      * the edge is unusable in this direction.
      */
-    Piece piece (EdgeStore.Edge edge, double from, double to, double meters, int tStart,
-                         PedestrianCostTable table, double walkSpeed, int limit) {
+    Piece piece (EdgeStore.Edge edge, double from, double to, double meters, double tStart,
+                         PedestrianCostTable table, double walkSpeed, double limit) {
         boolean whole = from == 0 && to == 1;
-        if (tStart == Integer.MAX_VALUE || tStart >= limit) return null;
+        if (tStart >= limit) return null;
         if (!whole && meters < PedestrianCostTable.AT_END_METERS) return null; // Nothing to walk: see partialSeconds.
-        int seconds = whole
-                ? PedestrianCostTimeCalculator.roundSeconds(table.seconds(edge, walkSpeed))
-                : PedestrianCostTimeCalculator.roundPartialSeconds(table.partialSeconds(edge, walkSpeed, meters));
-        if (seconds < 0) return null;
+        // In fractions of a second, as the router keeps them.
+        double seconds = whole ? table.seconds(edge, walkSpeed) : table.partialSeconds(edge, walkSpeed, meters);
+        if (Double.isNaN(seconds)) return null;
         Piece p = new Piece();
         p.edgeIndex = edge.getEdgeIndex();
         p.osmId = edge.getOSMID();
         p.t0 = tStart;
         p.complete = tStart + seconds <= limit;
         p.wholeEdge = whole;
-        double reached = p.complete ? 1 : (limit - tStart) / (double) seconds;
+        double reached = p.complete ? 1 : (limit - tStart) / seconds;
         p.t1 = p.complete ? tStart + seconds : limit;
         p.meters = meters * reached;
         LineString line = edge.getGeometry();

@@ -501,7 +501,7 @@ components:
                   properties:
                     type: object
                     properties:
-                      cost: {type: integer, description: Seconds from the origin}
+                      cost: {type: number, description: Seconds from the origin}
 
     RouteSegment:
       type: object
@@ -513,7 +513,7 @@ components:
             - {$ref: "#/components/schemas/EdgeProperties"}
             - type: object
               properties:
-                cost: {type: integer, description: Seconds to walk this part of the route}
+                cost: {type: number, description: Seconds to walk this part of the route}
 
     ShortestPath:
       type: object
@@ -532,8 +532,8 @@ components:
             type: object
             properties:
               distance: {type: number, description: Meters}
-              duration: {type: integer, description: Cost in seconds}
-              total_cost: {type: integer, description: The same as `duration`}
+              duration: {type: number, description: Cost in seconds}
+              total_cost: {type: number, description: The same as `duration`}
               geometry: {$ref: "#/components/schemas/LineString"}
               segments:
                 type: object

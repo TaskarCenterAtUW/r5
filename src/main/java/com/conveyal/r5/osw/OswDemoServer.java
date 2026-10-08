@@ -292,7 +292,7 @@ public class OswDemoServer {
      * Every stretch of the network reached by a finished search, each walked in the direction that reaches it first
      * and cut short where the time runs out.
      */
-    List<Piece> reachedPieces (StreetRouter router, PedestrianCostTable table, int limit) {
+    List<Piece> reachedPieces (StreetRouter router, PedestrianCostTable table, double limit) {
         List<Piece> pieces = new ArrayList<>();
         Split split = router.getOriginSplit();
         double walkSpeed = router.profileRequest.walkSpeed;
@@ -302,8 +302,8 @@ public class OswDemoServer {
             if (attrs.tags(e) == null) continue;
             fwd.seek(e);
             back.seek(e + 1);
-            int tFwd = router.getTravelTimeToVertex(fwd.getFromVertex());
-            int tBack = router.getTravelTimeToVertex(back.getFromVertex());
+            double tFwd = router.getExactTravelTimeToVertex(fwd.getFromVertex());
+            double tBack = router.getExactTravelTimeToVertex(back.getFromVertex());
             if (e == split.edge) {
                 // The search starts partway along this edge, so it is walked outward from that point in both
                 // directions (as the router does), and only otherwise inward from its ends.
@@ -352,22 +352,21 @@ public class OswDemoServer {
      * of meters, starting at tStart seconds and cut short where the time runs out. Null if the start is unreached or
      * the edge is unusable in this direction.
      */
-    Piece piece (EdgeStore.Edge edge, double from, double to, double meters, int tStart,
-                         PedestrianCostTable table, double walkSpeed, int limit) {
+    Piece piece (EdgeStore.Edge edge, double from, double to, double meters, double tStart,
+                         PedestrianCostTable table, double walkSpeed, double limit) {
         boolean whole = from == 0 && to == 1;
-        if (tStart == Integer.MAX_VALUE || tStart >= limit) return null;
+        if (tStart >= limit) return null;
         if (!whole && meters < PedestrianCostTable.AT_END_METERS) return null; // Nothing to walk: see partialSeconds.
-        int seconds = whole
-                ? PedestrianCostTimeCalculator.roundSeconds(table.seconds(edge, walkSpeed))
-                : PedestrianCostTimeCalculator.roundPartialSeconds(table.partialSeconds(edge, walkSpeed, meters));
-        if (seconds < 0) return null;
+        // In fractions of a second, as the router keeps them.
+        double seconds = whole ? table.seconds(edge, walkSpeed) : table.partialSeconds(edge, walkSpeed, meters);
+        if (Double.isNaN(seconds)) return null;
         Piece p = new Piece();
         p.edgeIndex = edge.getEdgeIndex();
         p.osmId = edge.getOSMID();
         p.t0 = tStart;
         p.complete = tStart + seconds <= limit;
         p.wholeEdge = whole;
-        double reached = p.complete ? 1 : (limit - tStart) / (double) seconds;
+        double reached = p.complete ? 1 : (limit - tStart) / seconds;
         p.t1 = p.complete ? tStart + seconds : limit;
         p.meters = meters * reached;
         LineString line = edge.getGeometry();

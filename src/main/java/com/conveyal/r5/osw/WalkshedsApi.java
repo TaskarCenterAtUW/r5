@@ -50,7 +50,7 @@ import java.util.function.IntPredicate;
  *  - With the server's compatibility mode off, points attach to the nearest point on the ground of the nearest edge
  *    within 50 m that the traveller can use. With it on, the default, they attach as in Walksheds: see
  *    WalkshedsSnapping.
- *  - Times are R5's: each edge is rounded up to a whole second.
+ *  - Costs are unrounded, as in Walksheds, and reported to a thousandth of a second.
  *  - A point within 10 cm of a node is treated as at the node. One slightly further along an edge is charged that
  *    edge's delay, or gets NoPath if the edge is impassable; R5's snapping can place a point given at a node there.
  *  - Edge features carry the OSW properties (with ":" in keys replaced by "_", as in Walksheds), but not the counts
@@ -201,8 +201,10 @@ class WalkshedsApi {
         router.setOrigin(split, lat, lon);
         // Unweaver's costs start on the network, so the time R5 allows for getting there is not counted.
         int offStreet = OswDemoServer.offStreetSeconds(split, BASE_SPEED);
-        int limit = (int) Math.floor(maxCost) + offStreet;
-        router.timeLimitSeconds = limit;
+        double limit = maxCost + offStreet;
+        // The router keeps states below its limit in whole seconds, rounded up; those within the limit are picked
+        // out below by their unrounded times.
+        router.timeLimitSeconds = (int) Math.ceil(limit) + 1;
         router.route();
         List<Piece> pieces = server.reachedPieces(router, router.getPedestrianCostTable(), limit);
         if (pieces.isEmpty()) return code("InvalidWaypoint");
@@ -219,11 +221,12 @@ class WalkshedsApi {
         }
         ArrayNode nodeCosts = featureCollection(out, "node_costs");
         VertexStore.Vertex vertex = streets.vertexStore.getCursor();
-        router.getReachedVertices().forEachEntry((v, seconds) -> {
+        router.getReachedVertices().forEachKey(v -> {
+            double seconds = router.getExactTravelTimeToVertex(v);
             if (seconds <= limit) {
                 vertex.seek(v);
                 ObjectNode properties = MAPPER.createObjectNode();
-                properties.put("cost", seconds - offStreet);
+                properties.put("cost", round(seconds - offStreet, 3));
                 addFeature(nodeCosts, point(vertex.getLon(), vertex.getLat()).get("geometry"), properties);
             }
             return true;
@@ -237,9 +240,9 @@ class WalkshedsApi {
     private static class Step {
         final int edgeIndex;
         final double from, to, meters;
-        final int seconds;
+        final double seconds;
 
-        Step (int edgeIndex, double from, double to, double meters, int seconds) {
+        Step (int edgeIndex, double from, double to, double meters, double seconds) {
             this.edgeIndex = edgeIndex;
             this.from = from;
             this.to = to;
@@ -270,8 +273,7 @@ class WalkshedsApi {
         ArrayNode track = geometry.putArray("coordinates");
         ArrayNode segments = featureCollection(route, "segments");
         ArrayNode leg = route.putArray("legs").addArray();
-        double meters = 0;
-        int seconds = 0;
+        double meters = 0, seconds = 0;
         Coordinate last = null;
         EdgeStore.Edge edge = streets.edgeStore.getCursor();
         for (Step step : steps) {
@@ -280,7 +282,7 @@ class WalkshedsApi {
                     : new GroundLine(edge.getGeometry()).extract(step.from, step.to);
             ObjectNode properties = edgeProperties(step.edgeIndex);
             properties.put("length", round(step.meters, 3));
-            properties.put("cost", step.seconds);
+            properties.put("cost", round(step.seconds, 3));
             ObjectNode lineJson = OswDemoServer.lineJson(line);
             addFeature(segments, lineJson, properties);
             addFeature(leg, lineJson.deepCopy(), properties.deepCopy());
@@ -292,8 +294,8 @@ class WalkshedsApi {
             seconds += step.seconds;
         }
         route.put("distance", round(meters, 3));
-        route.put("duration", seconds);
-        route.put("total_cost", seconds);
+        route.put("duration", round(seconds, 3));
+        route.put("total_cost", round(seconds, 3));
         return out;
     }
 
@@ -313,9 +315,8 @@ class WalkshedsApi {
             boolean forward = destination.distance0_mm >= origin.distance0_mm;
             EdgeStore.Edge edge = streets.edgeStore.getCursor(forward ? origin.edge : origin.edge + 1);
             double meters = Math.abs(destination.distance0_mm - origin.distance0_mm) / 1000d;
-            int direct = PedestrianCostTimeCalculator.roundPartialSeconds(
-                    router.getPedestrianCostTable().partialSeconds(edge, BASE_SPEED, meters));
-            if (direct >= 0 && (end == null || direct <= end.getDurationSeconds() - offStreet)) {
+            double direct = router.getPedestrianCostTable().partialSeconds(edge, BASE_SPEED, meters);
+            if (!Double.isNaN(direct) && (end == null || direct <= end.getExactDurationSeconds() - offStreet)) {
                 double from = forward ? atOrigin : 1 - atOrigin, to = forward ? atDestination : 1 - atDestination;
                 return List.of(new Step(edge.getEdgeIndex(), from, Math.max(from, to), meters, direct));
             }
@@ -326,12 +327,12 @@ class WalkshedsApi {
         for (StreetRouter.State s = end; s != null; s = s.backState) states.add(s);
         Collections.reverse(states);
         List<Step> steps = new ArrayList<>();
-        int before = offStreet;
+        double before = offStreet;
         for (int i = 0; i < states.size(); i++) {
             StreetRouter.State state = states.get(i);
             boolean forward = state.backEdge % 2 == 0;
-            int seconds = state.getDurationSeconds() - before;
-            before = state.getDurationSeconds();
+            double seconds = state.getExactDurationSeconds() - before;
+            before = state.getExactDurationSeconds();
             if (i == 0) {
                 // From the origin, partway along its edge, to one end of it.
                 double from = forward ? atOrigin : 1 - atOrigin;

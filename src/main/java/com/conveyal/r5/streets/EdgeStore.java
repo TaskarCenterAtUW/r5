@@ -5,6 +5,7 @@ import com.conveyal.r5.common.DirectionUtils;
 import com.conveyal.r5.common.GeometryUtils;
 import com.conveyal.r5.labeling.StreetClass;
 import com.conveyal.r5.osw.OswEdgeAttributes;
+import com.conveyal.r5.osw.PedestrianCostTimeCalculator;
 import com.conveyal.r5.profile.ProfileRequest;
 import com.conveyal.r5.profile.StreetMode;
 import com.conveyal.r5.rastercost.CostField;
@@ -724,15 +725,25 @@ public class EdgeStore implements Serializable {
                     turnTimeSeconds = timeCalculator.turnTimeSeconds(s0.backEdge, getEdgeIndex(), streetMode);
                 }
             }
-            // TODO add checks for negative increment values to these functions.
-            s1.incrementTimeInSeconds(traverseTimeSeconds + turnTimeSeconds);
-            s1.distance += getLengthMm();
-
-            // Make sure we don't have states that don't increment weight/time, otherwise we could create loops.
-            // This should not happen since we always round upward (ceil function), perhaps replace with assertions.
-            if (s1.durationSeconds == s0.durationSeconds) {
-                s1.incrementTimeInSeconds(1);
+            // A pedestrian cost profile gives walking times in fractions of a second, which the state keeps so
+            // that rounding happens once along a path and not once per edge.
+            double exactSeconds = Double.NaN;
+            if (streetMode == StreetMode.WALK && timeCalculator instanceof PedestrianCostTimeCalculator pedestrian) {
+                exactSeconds = pedestrian.getTable().seconds(this, req.walkSpeed);
             }
+            // TODO add checks for negative increment values to these functions.
+            if (exactSeconds > 0) {
+                s1.incrementTimeExact(exactSeconds);
+                s1.incrementTimeInSeconds(turnTimeSeconds);
+            } else {
+                s1.incrementTimeInSeconds(traverseTimeSeconds + turnTimeSeconds);
+                // Make sure we don't have states that don't increment weight/time, otherwise we could create loops.
+                // This should not happen since we always round upward (ceil function), perhaps replace with assertions.
+                if (s1.durationSeconds == s0.durationSeconds) {
+                    s1.incrementTimeInSeconds(1);
+                }
+            }
+            s1.distance += getLengthMm();
             if (s1.distance == s0.distance) {
                 s1.distance += 1;
             }

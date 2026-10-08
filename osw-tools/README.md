@@ -337,7 +337,10 @@ page from a folder instead of the jar, so you can edit `src/main/resources/osw-d
   Edges with no OSW attributes at all (transit links, scenario-added streets) are walked at base speed.
 - `inclineSpeed`: Tobler's hiking function, with speed falling to `base / divisor` at the user's limits. Edges longer
   than `minLengthForLimits` metres that are steeper than the limits are impassable. An edge with a missing or
-  non-numeric `incline` is walked at the layer's plain speed, with no limit applied.
+  non-numeric `incline` is walked at the layer's plain speed, with no limit applied. `direction` says which incline
+  an edge walked against the way it is mapped has: `"travel"` (the default) reverses its sign, so uphill becomes
+  downhill; `"mapped"` uses it as mapped, so the edge costs the same both ways. The Walksheds profiles use
+  `"mapped"`, because the Walksheds service does.
 - `delaySeconds` is added to travel time. (In `cost-dynamic.py` the delay is overwritten. That bug is fixed here.)
 - `requireCurbRamps`: the edge needs curb ramps. R5 derives this from the OSW kerb nodes at its two ends, as the
   TDEI Walksheds service does: the edge has ramps unless a kerb stands in the way at either end, meaning any kerb
@@ -382,7 +385,8 @@ UNWEAVER_DIR=~/GitHub/unweaver UNWEAVER_PYTHON=~/venvs/unweaver/bin/python \
   '{"uphill": 0.083, "downhill": 0.1, "avoid_curbs": true}' 1.3
 ```
 
-This prepares the dataset for Unweaver, builds its graph (`--changes-sign incline`), queries Unweaver's
+This prepares the dataset for Unweaver, builds its graph (`--changes-sign incline`, which suits profiles whose
+`inclineSpeed.direction` is `"travel"`), queries Unweaver's
 `shortest_path_tree` and `reachable_tree` at the origin node, runs `OswWalkshedMain`, and compares them:
 
 1. **Provenance**: same profileId, runSpecId and base speed on both sides.

@@ -73,6 +73,7 @@ public class PedestrianCostSpec {
         final String name;
         final PedestrianCostProfile.Match match;
         final boolean hasIncline;
+        final boolean inclineAsMapped;
         final double maxUphill, maxDownhill, ideal, kUp, kDown, minLengthForLimits;
         final double delaySeconds;
         final boolean requireCurbRamps;
@@ -85,6 +86,7 @@ public class PedestrianCostSpec {
             this.name = layer.name;
             this.match = layer.match;
             this.hasIncline = layer.inclineSpeed != null;
+            this.inclineAsMapped = hasIncline && layer.inclineSpeed.asMapped;
             if (hasIncline) {
                 PedestrianCostProfile.InclineSpeed s = layer.inclineSpeed;
                 maxUphill = number(s.maxUphill.resolve(params), "maxUphill");
@@ -137,6 +139,18 @@ public class PedestrianCostSpec {
      *            {@link #IMPASSABLE} (NaN) if the edge cannot be traversed.
      */
     public void evaluate (Map<String, String> tags, double incline, double lengthMeters, byte curbRamps, double[] out) {
+        evaluate(tags, incline, incline, lengthMeters, curbRamps, out);
+    }
+
+    /**
+     * As {@link #evaluate(Map, double, double, byte, double[])}, for an edge that may be walked backwards.
+     *
+     * @param incline grade in the direction of travel
+     * @param inclineAsMapped grade in the direction the edge is mapped: the same, or the opposite if this is the
+     *                        backward edge of its pair. Layers whose inclineSpeed has direction "mapped" use this.
+     */
+    public void evaluate (Map<String, String> tags, double incline, double inclineAsMapped, double lengthMeters,
+                          byte curbRamps, double[] out) {
         out[0] = 1;
         out[1] = 0;
         if (tags == null) return;
@@ -159,7 +173,7 @@ public class PedestrianCostSpec {
         // An edge with no incline is walked at the layer's plain speed, as Walksheds does. It is not treated as flat:
         // level ground is slightly slower than the ideal, gently downhill, grade.
         if (layer.hasIncline && !Double.isNaN(incline)) {
-            double i = incline;
+            double i = layer.inclineAsMapped ? inclineAsMapped : incline;
             if (lengthMeters > layer.minLengthForLimits && (i > layer.maxUphill || i < -layer.maxDownhill)) {
                 out[0] = IMPASSABLE;
                 return;

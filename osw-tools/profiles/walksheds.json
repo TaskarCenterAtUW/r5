@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "walksheds",
-  "description": "The Walksheds cost function from before fan mode (cost-custom.py, as on TDEI ticket 1965). All footways are usable; crossings add 30 s and need curb ramps when avoiding curbs; steps are walked at 0.5 m/s unless avoiding curbs; streets cost more the higher the street avoidance and are closed at 1. Left out: indoor footways' opening hours, transit edges, closed edges, pathway stairs, sidewalk scoring and avoiding primary streets.",
+  "description": "The Walksheds cost function from before fan mode (cost-custom.py, as on TDEI ticket 1965). All footways are usable, and an edge costs the same in both directions, by its incline as mapped; crossings add 30 s and need curb ramps when avoiding curbs; steps are walked at 0.5 m/s unless avoiding curbs; streets cost more the higher the street avoidance and are closed at 1. Left out: indoor footways' opening hours, transit edges, closed edges, pathway stairs, sidewalk scoring and avoiding primary streets.",
   "parameters": {
     "uphill": {
       "type": "number",
@@ -57,7 +57,8 @@
         "maxDownhill": "$downhill",
         "ideal": -0.0087,
         "divisor": 5,
-        "minLengthForLimits": 3
+        "minLengthForLimits": 3,
+        "direction": "mapped"
       }
     },
     {
@@ -71,7 +72,8 @@
         "maxDownhill": "$downhill",
         "ideal": -0.0087,
         "divisor": 5,
-        "minLengthForLimits": 3
+        "minLengthForLimits": 3,
+        "direction": "mapped"
       }
     },
     {
@@ -84,7 +86,8 @@
         "maxDownhill": "$downhill",
         "ideal": -0.0087,
         "divisor": 5,
-        "minLengthForLimits": 3
+        "minLengthForLimits": 3,
+        "direction": "mapped"
       }
     },
     {
@@ -109,7 +112,8 @@
         "maxDownhill": "$downhill",
         "ideal": -0.0087,
         "divisor": 5,
-        "minLengthForLimits": 3
+        "minLengthForLimits": 3,
+        "direction": "mapped"
       }
     },
     {
@@ -126,7 +130,8 @@
         "maxDownhill": "$downhill",
         "ideal": -0.0087,
         "divisor": 5,
-        "minLengthForLimits": 3
+        "minLengthForLimits": 3,
+        "direction": "mapped"
       }
     },
     {
@@ -139,7 +144,8 @@
         "maxDownhill": "$downhill",
         "ideal": -0.0087,
         "divisor": 5,
-        "minLengthForLimits": 3
+        "minLengthForLimits": 3,
+        "direction": "mapped"
       },
       "avoidance": {
         "amount": "$street_avoidance",
@@ -156,7 +162,8 @@
         "maxDownhill": "$downhill",
         "ideal": -0.0087,
         "divisor": 5,
-        "minLengthForLimits": 3
+        "minLengthForLimits": 3,
+        "direction": "mapped"
       },
       "avoidance": {
         "amount": "$street_avoidance",
@@ -177,7 +184,8 @@
         "maxDownhill": "$downhill",
         "ideal": -0.0087,
         "divisor": 5,
-        "minLengthForLimits": 3
+        "minLengthForLimits": 3,
+        "direction": "mapped"
       },
       "avoidance": {
         "amount": "$street_avoidance",

@@ -15,23 +15,26 @@ Every percentage in this file is a share of those 4,000 routes.
 
 | Outcome | Routes | Share |
 |---|---|---|
-| Both find a route, lengths within 2% | 3,105 | 77.6% |
+| Both find a route, lengths within 2% | 3,300 | 82.5% |
 | Neither finds a route | 497 | 12.4% |
-| **The two agree** | **3,602** | **90.1%** |
-| Different start or end point | 266 | 6.7% |
+| **The two agree** | **3,797** | **94.9%** |
+| Different start or end point | 101 | 2.5% |
 | Rounding | 48 | 1.2% |
-| **Differ, cause known** | **314** | **7.9%** |
-| Walksheds misses a cheaper path | 46 | 1.2% |
-| R5 does not take a path cheaper by its own costs | 24 | 0.6% |
+| **Differ, cause known** | **149** | **3.7%** |
+| Walksheds misses a cheaper path | 39 | 1.0% |
+| R5 does not take a path cheaper by its own costs | 1 | 0.0% |
 | Short steep edges | 4 | 0.1% |
 | Only one of the two finds a route | 10 | 0.3% |
-| **Differ, cause not known** | **84** | **2.1%** |
+| **Differ, cause not known** | **54** | **1.4%** |
 
-So on 98% of routes the two either agree or differ for a known reason, and 2% are unexplained. Each cause is
+So on 98.6% of routes the two either agree or differ for a known reason, and 1.4% are unexplained. Each cause is
 described under [Remaining](#remaining) below, with its status.
 
-Of the routes whose lengths differ, 216 (5.4%) are within 5% and 33 (0.8%) are more than 25% apart. Costs are close
-too: about 3,320 routes (83%) have costs within 5% of each other, with R5's a median 2% higher because it rounds.
+Of the routes whose lengths differ, 79 (2.0%) are within 5% and 33 (0.8%) are more than 25% apart. Costs are close
+too: about 3,390 routes (85%) have costs within 5% of each other, with R5's a median 2% higher because it rounds.
+
+These figures are with R5's compatibility mode on, which is the default: see
+[Attaching a point to the network](#attaching-a-point-to-the-network).
 
 These numbers come from one dataset with no road edges. What streets cost has been checked separately, against
 one Walksheds walkshed on a dataset with roads (see [Tests](#tests)): at a street avoidance of 0.5, R5's costs
@@ -53,25 +56,26 @@ The sections below describe each cause.
 | R5 joined edges by node ID, leaving steps and other edges that share only a position unconnected | **Fixed** | Pedestrian routes only Walksheds finds: 24 → 0. Routes over 25% different in length: 58 → 36 |
 | R5 treated an edge with no incline as flat, which is slower than the plain speed Walksheds walks it at | **Fixed** | No change on this sample, where nearly every edge has an incline. On a dataset with roads, which have none, every street cost 17% too much: found by the regression tests |
 | R5 reversed an edge's incline when it was walked backwards, and Walksheds costs an edge the same both ways | **Fixed** | Routes with lengths within 2%: 2,956 → 3,105 of 4,000. Routes with costs within 5%: about 2,130 → 3,320 |
+| R5 attached a point at the nearest place on an edge on the ground, and Walksheds at the nearest in longitude and latitude | **Fixed**, in compatibility mode | Routes with lengths within 2%: 3,105 → 3,300 of 4,000 |
 
 ### Remaining
 
-The 398 routes on which the two differ (10%), by cause. To find the cause where the lengths differ, each engine's
+The 203 routes on which the two differ (5.1%), by cause. To find the cause where the lengths differ, each engine's
 path was costed under both engines' rules: Walksheds' (unrounded) and R5's (each edge rounded up to a whole
 second).
 
 | Cause | Routes | Share | Status |
 |---|---|---|---|
-| The route starts or ends at a different point, more than 5 m away | 266 | 6.7% | **Left as is.** Mostly Walksheds finding the nearest point on an edge in longitude and latitude instead of on the ground. R5's point is the accurate one. |
+| The route starts or ends at a different point, more than 5 m away | 101 | 2.5% | **Open.** Mostly a different edge. Not investigated. |
 | Rounding: each engine's path is the cheaper one under its own costs | 48 | 1.2% | **Left as is for now.** R5 rounds each edge up to a whole second. |
-| **Cause known** | **314** | **7.9%** | |
-| R5's path is cheaper by Walksheds' own costs, yet Walksheds did not take it | 46 | 1.2% | **Unexplained.** Something in Walksheds or Unweaver. |
-| Walksheds' path is cheaper by R5's own costs, yet R5 did not take it | 24 | 0.6% | **Unexplained.** Should not happen; to be investigated. |
+| **Cause known** | **149** | **3.7%** | |
+| R5's path is cheaper by Walksheds' own costs, yet Walksheds did not take it | 39 | 1.0% | **Unexplained.** Something in Walksheds or Unweaver. |
+| Walksheds' path is cheaper by R5's own costs, yet R5 did not take it | 1 | 0.0% | **Unexplained.** Should not happen. The others counted here before came from the attachment point. |
 | Walksheds walks an edge R5 has closed | 4 | 0.1% | **Open.** Short steep edges; not investigated. |
 | Only one of the two finds a route | 10 | 0.3% | **Unexplained.** Five each way; not investigated. |
-| **Cause not known** | **84** | **2.1%** | |
+| **Cause not known** | **54** | **1.4%** | |
 
-In all: on 90.1% of routes the two agree, on 7.9% they differ for a known reason, and on 2.1% they differ for a
+In all: on 94.9% of routes the two agree, on 3.7% they differ for a known reason, and on 1.4% they differ for a
 reason not yet understood.
 
 ## Differences in how a route is costed
@@ -96,31 +100,33 @@ wheelchair routes examined.
 
 ### Attaching a point to the network
 
-Both engines attach a requested point to a nearby edge and start or end the route there. They differ in which
-edge, and in where on it. As a result 459 routes (11.5%) start or end more than 5 m apart. Most of those are
-otherwise the same route: 266 (6.7%) differ in length by more than 2% for this reason, usually by no more than the
-offset itself.
+Both engines attach a requested point to a nearby edge and start or end the route there. Left to itself, R5 does
+this differently from Walksheds, so the Walksheds-compatible API has a **compatibility mode**, on by default, in
+which it attaches points as Walksheds does. It is turned off with the environment variable `WALKSHEDS_COMPAT=0`, or
+the server option `--walksheds-compat false`, and the figures at the top of this file are with it on.
 
-**Where on the edge.** R5 attaches at the point on the edge nearest to the requested point on the ground. Walksheds
-finds the nearest point using longitude and latitude as they are, as if a degree of each were the same length. At
-Seattle's latitude a degree of longitude is about two-thirds of a degree of latitude, so its point is not the
-nearest one: it lies further along the edge, by up to about 10 m.
+**Where on the edge.** R5's own way is to attach at the point on the edge nearest to the requested point on the
+ground. Walksheds finds the nearest point using longitude and latitude as they are, as if a degree of each were the
+same length. At Seattle's latitude a degree of longitude is about two-thirds of a degree of latitude, so its point is
+not the nearest one: it lies further along the edge, by up to about 10 m. In compatibility mode R5 does the same.
 
 *Evidence.* Of the 6,986 ends of the sampled routes that both engines find, projecting in longitude and latitude
 reproduces Walksheds' attachment point to within 1 m for 6,976. The nearest point on the ground does so for 5,599.
 
-**Which edge.** R5 uses the nearest edge within 50 m that the traveller can use in at least one direction.
-Unweaver takes the four nearest edge records, which is usually the two nearest edges since each is stored once per
-direction, and uses the first that is usable. If none of those is, it reports an invalid waypoint, even when a
-usable edge is a little further away. This rule is read from Unweaver's source and has not been tested against
-Walksheds' output.
+**Which edge.** Both use the nearest edge within 50 m that the traveller can use. Unweaver's source looks only at
+the four nearest edge records, but the deployed Walksheds does not behave that way: of 6,996 route ends, 6,777 are on
+the nearest edge, 178 are on the nearest usable edge with up to four unusable ones nearer, and 41 are on another
+edge, mostly where two edges meet and are equally near. So R5 applies no such limit, in either mode.
 
-Of the 410 route ends that the two engines attach more than 5 m apart, 283 are on the same edge at a different
-point, and 127 are on different edges.
+| | Compatibility mode on | Off |
+|---|---|---|
+| Routes that differ in length by more than 2% because they start or end at a different point | 101 (2.5%) | 266 (6.7%) |
+| The two agree | 94.9% | 90.1% |
 
-*Decision.* R5 is left as it is. Its attachment point is the accurate one, and looking further for a usable edge is
-why it finds a few routes Walksheds does not. The projection in longitude and latitude is a defect to raise with
-the Walksheds team.
+With it on, 138 of the 6,986 route ends are still more than 5 m apart: 124 on a different edge and 14 on the same
+one. These have not been investigated.
+
+Turn compatibility mode off to have routes start and end at the point on the network that is really nearest.
 
 The 50 m limit is inferred: routes from the deployed Walksheds start up to 50.0 m from the requested point and no
 further. Unweaver's own default is 30 m.
@@ -136,7 +142,7 @@ to node positions in testing, and matters little for real points of interest.
 
 ### Walksheds sometimes misses a cheaper path
 
-In 46 routes (1.2%), R5's path is cheaper even by Walksheds' own cost function, so Walksheds could have taken
+In 39 routes (1.0%), R5's path is cheaper even by Walksheds' own cost function, so Walksheds could have taken
 it. In one, Walksheds walks 104 m where a 31 m path exists along edges it
 already uses. Not investigated; these look like Walksheds or Unweaver behaviour rather
 than something to copy. One known Unweaver difference of this kind: where two OSW edges join the same pair of nodes,
@@ -189,7 +195,8 @@ Walksheds service, in two ways:
 
 - **Exactly, with the accepted differences taken out.** The network is costed with R5's profile, attributes and
   connections, but without rounding, and starting from Walksheds' own costs at the ends of the edge its origin is on.
-  That removes rounding and the attachment point from the comparison. What
+  That removes rounding and the attachment point from the comparison, since some points still attach to a different
+  edge. What
   is left must match Walksheds to within a second at every node, and R5 must reach exactly the nodes Walksheds does.
 - **End to end, with an allowance for them.** R5's API is asked what Walksheds was asked. The answers must agree on
   whether there is a walkshed or route at all, and on each node's cost to within 5 s plus 13%.

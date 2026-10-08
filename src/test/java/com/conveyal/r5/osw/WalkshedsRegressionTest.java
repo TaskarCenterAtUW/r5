@@ -33,8 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * R5 is not meant to match Walksheds in every respect. osw-tools/DIFFERENCES.md lists the differences that are
  * accepted, of which two affect every result:
  *
- *  1. Where a requested point attaches to the network. Walksheds finds the nearest point on an edge in longitude and
- *     latitude; R5 finds the nearest on the ground.
+ *  1. Where a requested point attaches to the network. In compatibility mode R5 attaches at the place on an edge
+ *     that Walksheds would, but the two still sometimes choose different edges.
  *  2. Rounding. R5's router counts whole seconds and rounds each edge up; Walksheds does not round.
  *
  * So there are two kinds of test here.

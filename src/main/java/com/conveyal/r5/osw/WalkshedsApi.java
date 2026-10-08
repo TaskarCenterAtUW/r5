@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.IntPredicate;
 
 /**
  * A stand-in for the routing API of the TDEI Walksheds service (an Unweaver server), covering the calls made by the
@@ -46,8 +47,9 @@ import java.util.Map;
  *    streetAvoidance the request gives. It sets the profile's fan_out parameter; a profile without one (walksheds,
  *    the cost function from before fan mode) gets a 501.
  *  - The profile leaves out parts of the Walksheds cost function: see its description.
- *  - Points snap to the nearest edge within 50 m that the traveller can use in at least one direction. Walksheds
- *    chooses among a few nearby edges, so it may pick differently where the nearest usable edge is one-way.
+ *  - With the server's compatibility mode off, points attach to the nearest point on the ground of the nearest edge
+ *    within 50 m that the traveller can use. With it on, the default, they attach as in Walksheds: see
+ *    WalkshedsSnapping.
  *  - Times are R5's: each edge is rounded up to a whole second.
  *  - A point within 10 cm of a node is treated as at the node. One slightly further along an edge is charged that
  *    edge's delay, or gets NoPath if the edge is impassable; R5's snapping can place a point given at a node there.
@@ -178,13 +180,16 @@ class WalkshedsApi {
     }
 
     /**
-     * The nearest point on an edge the traveller can use in at least one direction, or null if there is none within
-     * MAX_SNAP_METERS. Like Unweaver, this passes over nearer edges that are impassable under the cost function.
+     * Where a point attaches to the network: on an edge within MAX_SNAP_METERS that the traveller can use in at least
+     * one direction, or null if there is none. In compatibility mode the edge and the point on it are chosen as
+     * Walksheds chooses them. Otherwise it is the nearest point on the nearest usable edge.
      */
     private Split snap (StreetRouter router, double lat, double lon) {
         PedestrianCostTable table = router.getPedestrianCostTable();
-        return Split.find(lat, lon, MAX_SNAP_METERS, streets, StreetMode.WALK,
-                e -> !Double.isNaN(table.speedFactor(e)) || !Double.isNaN(table.speedFactor(e + 1)));
+        IntPredicate usable = e -> !Double.isNaN(table.speedFactor(e)) || !Double.isNaN(table.speedFactor(e + 1));
+        return server.walkshedsCompat
+                ? WalkshedsSnapping.find(lat, lon, MAX_SNAP_METERS, streets, usable)
+                : Split.find(lat, lon, MAX_SNAP_METERS, streets, StreetMode.WALK, usable);
     }
 
     // ------------------------------------------------------------------------------------------------ Reachable tree

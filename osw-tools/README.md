@@ -277,6 +277,10 @@ each and how closely the two agree:
   are closed at 1. Rules they leave out are listed below.
 - Points snap to the nearest edge within 50 m that the traveller can use in at least one direction, and are
   `InvalidWaypoint` if there is none. (50 m is what the deployed Walksheds appears to use; Unweaver's default is 30.)
+- **Compatibility mode**, on by default, attaches a point at the place on that edge Walksheds would choose: the
+  nearest in longitude and latitude, which at Seattle's latitude can be 10 m from the nearest on the ground. Turn it
+  off with the environment variable `WALKSHEDS_COMPAT=0`, or `--walksheds-compat false`, to attach at the nearest
+  point on the ground. The option takes precedence over the variable.
 - Edge features have the OSW properties with `:` in keys replaced by `_`, but not the `curbs`, `lowered_curbs` and
   `flush_curbs` counts, and `_u` / `_v` have no elevation part.
 - Times are R5's, with each edge rounded up to a whole second.

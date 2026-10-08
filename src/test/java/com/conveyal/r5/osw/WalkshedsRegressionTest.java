@@ -31,23 +31,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Checks R5 against output saved from the TDEI Walksheds service, so that R5 does not drift from it unnoticed.
  *
  * R5 is not meant to match Walksheds in every respect. osw-tools/DIFFERENCES.md lists the differences that are
- * accepted, of which two affect every result:
- *
- *  1. Where a requested point attaches to the network. Walksheds finds the nearest point on an edge in longitude and
- *     latitude; R5 finds the nearest on the ground.
- *  2. Rounding. R5's router counts whole seconds and rounds each edge up; Walksheds does not round.
+ * accepted, of which one can affect any result: where a requested point attaches to the network. In compatibility
+ * mode R5 attaches where Walksheds would, except where two edges are equally near, between which Walksheds' choice
+ * cannot be predicted.
  *
  * So there are two kinds of test here.
  *
- * The exact tests take those two out of the comparison, and then expect R5 to agree with Walksheds to within a
- * second at every node. They cost the network with R5's own profile, attributes and connections, but without
- * rounding, and starting from Walksheds' costs at the two ends of the edge its origin is on.
- * Any difference they find is one that has not been accepted: a rule of the cost function, how curb ramps are
- * decided, which edges join, what a profile parameter does.
+ * The exact tests take that out of the comparison, and then expect R5 to agree with Walksheds to within a second at
+ * every node. They cost the network with R5's own profile, attributes and connections, by a search of their own that
+ * starts from Walksheds' costs at the two ends of the edge its origin is on. Any difference they find is one that
+ * has not been accepted: a rule of the cost function, how curb ramps are decided, which edges join, what a profile
+ * parameter does.
  *
  * The end-to-end tests ask R5's Walksheds-compatible API the same question Walksheds was asked, with nothing taken
- * out, and allow for the two differences. They are looser, and check what the exact tests cannot: that the router
- * and the API give the answer the cost model implies.
+ * out. They check what the exact tests cannot: that the router and the API give the answer the cost model implies,
+ * from where the point attaches to the unrounded cost at each node.
  *
  * The fixtures come from the TDEI quality reports' test data (osw-tools/verification/make_walksheds_fixtures.py):
  * "latah", a small dataset without roads, with Walksheds' answer for three points under each of the reports' four
@@ -68,18 +66,26 @@ public class WalkshedsRegressionTest {
     private static final double EXACT_TOLERANCE_SECONDS = 1.0;
 
     /**
-     * Allowances for the accepted differences in the end-to-end tests: a node's cost may differ from Walksheds' by
-     * END_TO_END_SECONDS plus END_TO_END_SHARE of the cost. Rounding each edge up is the larger part: a walkshed's
-     * farthest nodes are forty or so short edges from the origin.
+     * How far a node's cost may be from Walksheds' in the end-to-end tests: END_TO_END_SECONDS plus END_TO_END_SHARE
+     * of the cost. The router keeps fractions of a second, so this allows only for the lengths Walksheds works from,
+     * as in the exact tests, and for the place a point attaches being stored to the centimeter.
      */
-    private static final double END_TO_END_SECONDS = 5;
-    private static final double END_TO_END_SHARE = 0.13;
+    private static final double END_TO_END_SECONDS = 1;
+    private static final double END_TO_END_SHARE = 0.005;
 
     /**
      * In the end-to-end tests, a node that one engine reaches at less than this share of the cost limit must be
      * reached by the other too. Nearer the limit, the cost allowance above can put a node on either side of it.
      */
-    private static final double END_TO_END_REACH_SHARE = 0.85;
+    private static final double END_TO_END_REACH_SHARE = 0.99;
+
+    /**
+     * Walksheds answers whose costs the end-to-end tests do not compare, by what their file names contain. Latah's
+     * third point is nearest to a node where two crossings meet, so both are equally near. Which of the two Walksheds
+     * attaches to cannot be predicted, and here it is not the one R5 takes (the first in the dataset), which puts
+     * R5's start 8 m along a crossing instead of at the node. The exact tests still cover these answers.
+     */
+    private static final List<String> START_ON_TIED_EDGES = List.of("latah/walksheds/poi_3_");
 
     private static final Map<String, Fixture> FIXTURES = new LinkedHashMap<>();
 
@@ -222,6 +228,8 @@ public class WalkshedsRegressionTest {
                 continue;
             }
             if (!"Ok".equals(code)) continue;
+            String path = fixture.dir.getName() + "/" + name;
+            if (START_ON_TIED_EDGES.stream().anyMatch(path::contains)) continue;
 
             Map<Integer, Double> expected = new HashMap<>(), actual = new HashMap<>();
             for (JsonNode n : walksheds.get("node_costs")) {

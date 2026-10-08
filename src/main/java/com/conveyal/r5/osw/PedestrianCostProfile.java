@@ -166,6 +166,13 @@ public class PedestrianCostProfile {
         final double divisor;
         /** The incline limits only exclude edges longer than this (meters), tolerating short steep segments. */
         final double minLengthForLimits;
+        /**
+         * Whether an edge's incline is taken as mapped whichever way it is walked ("mapped"), so that it costs the
+         * same in both directions, or reversed when it is walked backwards ("travel", the default), so that uphill
+         * one way is downhill the other. The TDEI Walksheds service does the first, deliberately: for a wheelchair
+         * user what matters is how steep an edge is, not which way it slopes.
+         */
+        final boolean asMapped;
 
         InclineSpeed (JsonNode spec) {
             this.maxUphill = new Value(require(spec, "maxUphill"));
@@ -173,7 +180,13 @@ public class PedestrianCostProfile {
             this.ideal = spec.path("ideal").asDouble(-0.0087);
             this.divisor = spec.path("divisor").asDouble(5);
             this.minLengthForLimits = spec.path("minLengthForLimits").asDouble(3);
-            checkKeys(spec, Set.of("maxUphill", "maxDownhill", "ideal", "divisor", "minLengthForLimits"), "inclineSpeed");
+            String direction = text(spec, "direction", "travel");
+            if (!direction.equals("travel") && !direction.equals("mapped")) {
+                throw new IllegalArgumentException("inclineSpeed direction must be travel or mapped, was " + direction);
+            }
+            this.asMapped = direction.equals("mapped");
+            checkKeys(spec, Set.of("maxUphill", "maxDownhill", "ideal", "divisor", "minLengthForLimits", "direction"),
+                    "inclineSpeed");
         }
     }
 

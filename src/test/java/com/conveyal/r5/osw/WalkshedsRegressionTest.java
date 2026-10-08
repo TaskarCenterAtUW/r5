@@ -31,23 +31,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Checks R5 against output saved from the TDEI Walksheds service, so that R5 does not drift from it unnoticed.
  *
  * R5 is not meant to match Walksheds in every respect. osw-tools/DIFFERENCES.md lists the differences that are
- * accepted, of which three affect every result:
+ * accepted, of which two affect every result:
  *
  *  1. Where a requested point attaches to the network. Walksheds finds the nearest point on an edge in longitude and
  *     latitude; R5 finds the nearest on the ground.
- *  2. Incline when an edge is walked backwards. Walksheds keeps the incline as mapped; R5 reverses it.
- *  3. Rounding. R5's router counts whole seconds and rounds each edge up; Walksheds does not round.
+ *  2. Rounding. R5's router counts whole seconds and rounds each edge up; Walksheds does not round.
  *
  * So there are two kinds of test here.
  *
- * The exact tests take those three out of the comparison, and then expect R5 to agree with Walksheds to within a
+ * The exact tests take those two out of the comparison, and then expect R5 to agree with Walksheds to within a
  * second at every node. They cost the network with R5's own profile, attributes and connections, but without
- * rounding, with incline as mapped, and starting from Walksheds' costs at the two ends of the edge its origin is on.
+ * rounding, and starting from Walksheds' costs at the two ends of the edge its origin is on.
  * Any difference they find is one that has not been accepted: a rule of the cost function, how curb ramps are
  * decided, which edges join, what a profile parameter does.
  *
  * The end-to-end tests ask R5's Walksheds-compatible API the same question Walksheds was asked, with nothing taken
- * out, and allow for the three differences. They are looser, and check what the exact tests cannot: that the router
+ * out, and allow for the two differences. They are looser, and check what the exact tests cannot: that the router
  * and the API give the answer the cost model implies.
  *
  * The fixtures come from the TDEI quality reports' test data (osw-tools/verification/make_walksheds_fixtures.py):
@@ -181,7 +180,7 @@ public class WalkshedsRegressionTest {
 
             PedestrianCostSpec spec = spec(c);
             double[] cost = OswWalkshedMain.exactDijkstra(fixture.streets, spec, start, BASE_SPEED,
-                    maxCost + EXACT_TOLERANCE_SECONDS, true);
+                    maxCost + EXACT_TOLERANCE_SECONDS);
 
             for (Map.Entry<Integer, Double> e : expected.entrySet()) {
                 if (start.containsKey(e.getKey())) continue;

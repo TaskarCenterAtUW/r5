@@ -44,7 +44,9 @@ public class PedestrianCostTable {
         int e = edge.getEdgeIndex();
         double oswLength = attributes.lengthMeters(e);
         double lengthForLimits = Double.isNaN(oswLength) ? edge.getLengthM() : oswLength;
-        spec.evaluate(attributes.tags(e), attributes.incline(e), lengthForLimits, attributes.curbRamps(e), out);
+        // The forward edge of each pair is the even one, and carries the incline as mapped.
+        spec.evaluate(attributes.tags(e), attributes.incline(e), attributes.incline(e & ~1), lengthForLimits,
+                attributes.curbRamps(e), out);
     }
 
     /**

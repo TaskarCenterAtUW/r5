@@ -164,6 +164,33 @@ public class PedestrianCostProfileTest {
                 "{\"layers\": [{\"name\": \"x\", \"avoidance\": {\"k\": 2}}]}"));
     }
 
+    /** Mirrored by test_incline_direction in osw-tools/verification/test_pedestrian_profile.py. */
+    @Test
+    public void inclineCanBeTakenAsMappedWhicheverWayAnEdgeIsWalked () throws Exception {
+        String layer = "{\"layers\": [{\"name\": \"paths\", \"match\": {\"highway\": \"footway\"}, \"inclineSpeed\": "
+                + "{\"maxUphill\": 0.1, \"maxDownhill\": 0.05%s}}]}";
+        PedestrianCostSpec travel = PedestrianCostProfile.fromJson(String.format(layer, "")).resolve(null);
+        PedestrianCostSpec mapped = PedestrianCostProfile.fromJson(
+                String.format(layer, ", \"direction\": \"mapped\"")).resolve(null);
+        Map<String, String> path = Map.of("highway", "footway");
+        double[] forward = new double[2], backward = new double[2];
+
+        // An edge mapped as 8% uphill, walked forwards and then backwards (where it is 8% downhill).
+        // By default the backward walk is downhill, and past the 5% downhill limit.
+        travel.evaluate(path, 0.08, 0.08, 100, OswEdgeAttributes.CURB_RAMPS_UNKNOWN, forward);
+        travel.evaluate(path, -0.08, 0.08, 100, OswEdgeAttributes.CURB_RAMPS_UNKNOWN, backward);
+        assertTrue(forward[0] > 0);
+        assertTrue(Double.isNaN(backward[0]));
+        // Taken as mapped, it is 8% uphill both ways: usable, and at the same speed.
+        mapped.evaluate(path, 0.08, 0.08, 100, OswEdgeAttributes.CURB_RAMPS_UNKNOWN, forward);
+        mapped.evaluate(path, -0.08, 0.08, 100, OswEdgeAttributes.CURB_RAMPS_UNKNOWN, backward);
+        assertTrue(forward[0] > 0);
+        assertEquals(forward[0], backward[0]);
+
+        assertThrows(IllegalArgumentException.class, () -> PedestrianCostProfile.fromJson(
+                String.format(layer, ", \"direction\": \"sideways\"")));
+    }
+
     @Test
     public void reservedKeysAndWronglyTypedSettingsAreRejected () {
         assertThrows(IllegalArgumentException.class, () -> PedestrianCostProfile.fromJson(

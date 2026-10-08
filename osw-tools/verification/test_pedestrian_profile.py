@@ -116,6 +116,17 @@ class TestPedestrianProfile(unittest.TestCase):
         with self.assertRaises(ValueError):
             pp.PedestrianCostProfile({"layers": [{"name": "x", "avoidance": {"k": 2}}]})
 
+    def test_incline_direction(self):
+        # Mirrors inclineCanBeTakenAsMappedWhicheverWayAnEdgeIsWalked in PedestrianCostProfileTest.java. In Python
+        # "mapped" changes nothing: the incline is whatever Unweaver stored for the directed edge.
+        def profile(extra):
+            return pp.PedestrianCostProfile({"layers": [{"name": "paths", "match": {"highway": "footway"},
+                "inclineSpeed": dict({"maxUphill": 0.1, "maxDownhill": 0.05}, **extra)}]}).resolve({})
+        edge = {"highway": "footway", "length": 100.0, "incline": 0.08}
+        self.assertEqual(profile({}).edge_seconds(edge, 1.3), profile({"direction": "mapped"}).edge_seconds(edge, 1.3))
+        with self.assertRaises(ValueError):
+            profile({"direction": "sideways"})
+
     def test_reserved_keys_and_setting_types_rejected(self):
         with self.assertRaises(ValueError):
             pp.PedestrianCostProfile({"layers": [{"name": "x", "match": {"curbramps": "1"}}]}).resolve({})

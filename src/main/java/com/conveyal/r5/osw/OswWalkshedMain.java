@@ -118,17 +118,15 @@ public class OswWalkshedMain {
     /** Dijkstra with unrounded double costs, using OSW lengths where present. Unreached vertices are +infinity. */
     static double[] exactDijkstra (StreetLayer streets, PedestrianCostSpec spec, int origin, double walkSpeed,
                                    double maxCost) {
-        return exactDijkstra(streets, spec, Map.of(origin, 0.0), walkSpeed, maxCost, false);
+        return exactDijkstra(streets, spec, Map.of(origin, 0.0), walkSpeed, maxCost);
     }
 
     /**
      * As {@link #exactDijkstra(StreetLayer, PedestrianCostSpec, int, double, double)}, but starting from several
-     * vertices at once, each with a cost already incurred, and optionally costing every edge by its incline as mapped
-     * whichever way it is walked. R5 does not route like that: walked backwards, uphill is downhill. Walksheds does,
-     * and this allows its costs to be reproduced exactly when checking R5 against it (see WalkshedsRegressionTest).
+     * vertices at once, each with a cost already incurred.
      */
     static double[] exactDijkstra (StreetLayer streets, PedestrianCostSpec spec, Map<Integer, Double> startCosts,
-                                   double walkSpeed, double maxCost, boolean inclineAsMapped) {
+                                   double walkSpeed, double maxCost) {
         OswEdgeAttributes attrs = streets.edgeStore.oswAttributes;
         double[] cost = new double[streets.vertexStore.getVertexCount()];
         Arrays.fill(cost, Double.POSITIVE_INFINITY);
@@ -147,7 +145,7 @@ public class OswWalkshedMain {
                 int e = it.next();
                 edge.seek(e);
                 if (!edge.getFlag(EdgeStore.EdgeFlag.ALLOWS_PEDESTRIAN)) continue;
-                double seconds = exactSeconds(edge, attrs, spec, walkSpeed, eval, inclineAsMapped);
+                double seconds = exactSeconds(edge, attrs, spec, walkSpeed, eval);
                 if (Double.isNaN(seconds)) continue;
                 double c = top[0] + seconds;
                 int to = edge.getToVertex();
@@ -161,13 +159,12 @@ public class OswWalkshedMain {
     }
 
     private static double exactSeconds (EdgeStore.Edge edge, OswEdgeAttributes attrs, PedestrianCostSpec spec,
-                                        double walkSpeed, double[] eval, boolean inclineAsMapped) {
+                                        double walkSpeed, double[] eval) {
         int e = edge.getEdgeIndex();
         double oswLength = attrs.lengthMeters(e);
         double length = Double.isNaN(oswLength) ? edge.getLengthM() : oswLength;
         // The forward edge of each pair is the even one, and carries the incline as mapped.
-        double incline = attrs.incline(inclineAsMapped ? e & ~1 : e);
-        spec.evaluate(attrs.tags(e), incline, length, attrs.curbRamps(e), eval);
+        spec.evaluate(attrs.tags(e), attrs.incline(e), attrs.incline(e & ~1), length, attrs.curbRamps(e), eval);
         if (Double.isNaN(eval[0])) return Double.NaN;
         return PedestrianCostSpec.seconds(length, walkSpeed, eval[0], eval[1]);
     }
@@ -204,7 +201,7 @@ public class OswWalkshedMain {
             edge.seek(e);
             int from = edge.getFromVertex();
             if (Double.isInfinite(cost[from]) || !edge.getFlag(EdgeStore.EdgeFlag.ALLOWS_PEDESTRIAN)) continue;
-            double seconds = exactSeconds(edge, attrs, spec, walkSpeed, eval, false);
+            double seconds = exactSeconds(edge, attrs, spec, walkSpeed, eval);
             if (Double.isNaN(seconds) || (cost[from] + seconds > maxCost) != partial) continue;
             ObjectNode n = edges.addObject();
             n.put("edge", attrs.ids.edgeId(edge.getOSMID()));

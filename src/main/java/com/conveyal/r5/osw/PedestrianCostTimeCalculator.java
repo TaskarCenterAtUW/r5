@@ -8,8 +8,11 @@ import com.conveyal.r5.streets.TraversalTimeCalculator;
 /**
  * Applies a pedestrian cost profile to WALK traversals, delegating other modes to the wrapped calculator.
  *
- * R5 accumulates time in whole seconds. Each edge's cost is rounded up (minimum 1 second), as for R5's other walk
- * costs. Impassable edges are signaled by a negative traversal time, which makes EdgeStore.Edge.traverse reject them.
+ * This interface gives times in whole seconds, so each edge's cost is rounded up here (minimum 1 second), as for R5's
+ * other walk costs. The street router does not add these up: on finding this calculator it takes the unrounded cost
+ * from the table and keeps the fraction along the path (see StreetRouter.State.carrySeconds), using the value from
+ * here only to learn whether the edge is passable.
+ * Impassable edges are signaled by a negative traversal time, which makes EdgeStore.Edge.traverse reject them.
  * Unweaver's cost functions have no turn costs, so walk turn costs are zero.
  */
 public class PedestrianCostTimeCalculator implements TraversalTimeCalculator {

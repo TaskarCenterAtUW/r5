@@ -15,15 +15,15 @@ Every percentage in this file is a share of those 4,000 routes.
 
 | Outcome | Routes | Share |
 |---|---|---|
-| Both find a route, lengths within 2% | 3,399 | 85.0% |
+| Both find a route, lengths within 2% | 3,444 | 86.1% |
 | Neither finds a route | 498 | 12.5% |
-| **The two agree** | **3,897** | **97.4%** |
-| Rounding | 47 | 1.2% |
+| **The two agree** | **3,942** | **98.6%** |
 | Start and end on the same edge | 32 | 0.8% |
 | Two edges equally near the start or end | 10 | 0.3% |
 | Two edges between the same two nodes | 5 | 0.1% |
 | Short steep edges | 4 | 0.1% |
-| **Differ, cause known** | **98** | **2.5%** |
+| Two paths that cost nearly the same | 2 | 0.1% |
+| **Differ, cause known** | **53** | **1.3%** |
 | Only R5 finds a route | 4 | 0.1% |
 | Walksheds misses a cheaper path, for no known reason | 1 | 0.0% |
 | **Differ, cause not known** | **5** | **0.1%** |
@@ -31,8 +31,8 @@ Every percentage in this file is a share of those 4,000 routes.
 So on 99.9% of routes the two either agree or differ for a known reason. Each cause is described under
 [Remaining](#remaining) below, with its status.
 
-Of the routes whose lengths differ, 44 (1.1%) are within 5% and 24 (0.6%) are more than 25% apart. Costs are close
-too: about 3,460 routes (87%) have costs within 5% of each other, with R5's a median 2% higher because it rounds.
+Of the routes whose lengths differ, 11 (0.3%) are within 5% and 24 (0.6%) are more than 25% apart. Costs match
+closely: 3,431 routes (85.8%) have costs within 1% of each other, and R5's are a median 0.06% higher.
 
 These figures are with R5's compatibility mode on, which is the default: see
 [Attaching a point to the network](#attaching-a-point-to-the-network). With it off the two agree on 91.0% of routes.
@@ -57,39 +57,44 @@ The sections below describe each cause.
 | R5 joined edges by node ID, leaving steps and other edges that share only a position unconnected | **Fixed** | Pedestrian routes only Walksheds finds: 24 → 0. Routes over 25% different in length: 58 → 36 |
 | R5 treated an edge with no incline as flat, which is slower than the plain speed Walksheds walks it at | **Fixed** | No change on this sample, where nearly every edge has an incline. On a dataset with roads, which have none, every street cost 17% too much: found by the regression tests |
 | R5 reversed an edge's incline when it was walked backwards, and Walksheds costs an edge the same both ways | **Fixed** | Routes with lengths within 2%: 2,956 → 3,105 of 4,000. Routes with costs within 5%: about 2,130 → 3,320 |
+| R5 rounded each edge's cost up to a whole second, and Walksheds does not round | **Fixed** | Routes with lengths within 2%: 3,399 → 3,444 of 4,000. R5's costs were a median 2% higher than Walksheds', now 0.06% |
 | R5 attached a point somewhere other than Walksheds does on the edge, and sometimes to an edge that was not the nearest | **Fixed**, in compatibility mode | Routes with lengths within 2%: 3,105 → 3,399 of 4,000. Routes only Walksheds finds: 5 → 0 |
 
 ### Remaining
 
-The 103 routes on which the two differ (2.6%), by cause. To find the cause where the lengths differ, each engine's
-path was costed under both engines' rules: Walksheds' (unrounded) and R5's (each edge rounded up to a whole
-second).
+The 58 routes on which the two differ (1.5%), by cause. To find the cause where the lengths differ, each engine's
+path was costed with the Walksheds cost function.
 
 | Cause | Routes | Share | Status |
 |---|---|---|---|
-| Rounding: each engine's path is the cheaper one under its own costs | 47 | 1.2% | **Left as is for now.** R5 rounds each edge up to a whole second. |
-| The start and end are on the same edge, and Walksheds walks to one end of it and back | 32 | 0.8% | **Left as is.** A limitation of Unweaver. R5 walks straight there. |
+| The start and end are on the same edge, and Walksheds walks to one end of it and back | 32 | 0.8% | **Left as is.** A limitation of Unweaver, reported as TDEI issue 4420. R5 walks straight there. |
 | Two edges are equally near the start or end, and each engine attaches to a different one | 10 | 0.3% | **Left as is.** Walksheds' choice between them cannot be predicted. |
 | Two edges join the same two nodes, and Unweaver keeps only one | 5 | 0.1% | **Left as is.** R5 keeps both, and uses the shorter. |
 | Walksheds walks a short steep edge R5 has closed | 4 | 0.1% | **Open.** Probably how each measures 3 m. |
-| **Cause known** | **98** | **2.5%** | |
+| Two paths cost within 1% of each other, and each engine takes a different one | 2 | 0.1% | **Left as is.** |
+| **Cause known** | **53** | **1.3%** | |
 | Only R5 finds a route | 4 | 0.1% | **Unexplained.** |
 | R5's path is cheaper by Walksheds' own costs, yet Walksheds did not take it | 1 | 0.0% | **Unexplained.** |
 | **Cause not known** | **5** | **0.1%** | |
 
-In all: on 97.4% of routes the two agree, on 2.5% they differ for a known reason, and on 0.1% they differ for a
+In all: on 98.6% of routes the two agree, on 1.3% they differ for a known reason, and on 0.1% they differ for a
 reason not yet understood.
 
 ## Differences in how a route is costed
 
-### R5 rounds each edge's cost up to a whole second
+### Whole seconds
 
-R5 keeps time in whole seconds and rounds every edge up, with a minimum of one second. Walksheds adds unrounded
-costs. Over a route of thirty short edges this adds some seconds, so R5's costs run slightly higher (a median of 2%
-higher on routes of matching length), and near-ties can fall the other way. A walkshed with a cost limit reaches
-slightly less far for the same reason. This is the only known difference left in what an edge costs.
+R5's router counts time in whole seconds. It used to round every edge up, with a minimum of one second, which made
+costs a median 2% higher than Walksheds' and walksheds 2 to 3% smaller. With a pedestrian cost profile it now keeps
+the fraction of a second along each path and rounds only the total, so paths are compared by their unrounded
+costs, and the Walksheds-compatible API reports costs to a thousandth of a second.
 
-R5 can compute unrounded costs (`OswWalkshedMain` reports them as `exact`), but its router does not use them.
+What is left is small. Costs are a median 0.06% above Walksheds', and 98% of routes are within 1%. Walksheds works
+from lengths that are not rounded to the centimeter as the dataset's are, which accounts for a few hundredths of a
+second per edge.
+
+The rest of R5 still reads times in whole seconds (travel time surfaces, transit access and egress). Those are now
+the unrounded time rounded up once, so they are at most a second over, however many edges the path has.
 
 ### Short steep edges
 
@@ -211,12 +216,12 @@ moves away from Walksheds in a way this file does not account for. It compares R
 Walksheds service, in two ways:
 
 - **Exactly, with the accepted differences taken out.** The network is costed with R5's profile, attributes and
-  connections, but without rounding, and starting from Walksheds' own costs at the ends of the edge its origin is on.
-  That removes rounding and the attachment point from the comparison, since some points still attach to a different
-  edge. What
+  connections, by a search of its own that starts from Walksheds' own costs at the ends of the edge its origin is on.
+  That removes the attachment point from the comparison, since some points still attach to a different edge. What
   is left must match Walksheds to within a second at every node, and R5 must reach exactly the nodes Walksheds does.
-- **End to end, with an allowance for them.** R5's API is asked what Walksheds was asked. The answers must agree on
-  whether there is a walkshed or route at all, and on each node's cost to within 5 s plus 13%.
+- **End to end.** R5's API is asked what Walksheds was asked. The answers must agree on whether there is a
+  walkshed or route at all, on each node's cost to within 1 s plus 0.5%, and on which nodes are reached, apart from
+  those within 1% of the cost limit.
 
 The saved answers come from the TDEI quality reports' test data, and are under
 `src/test/resources/com/conveyal/r5/osw/walksheds/`:

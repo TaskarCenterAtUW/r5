@@ -33,8 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * R5 is not meant to match Walksheds in every respect. osw-tools/DIFFERENCES.md lists the differences that are
  * accepted, of which two affect every result:
  *
- *  1. Where a requested point attaches to the network. Walksheds finds the nearest point on an edge in longitude and
- *     latitude; R5 finds the nearest on the ground.
+ *  1. Where a requested point attaches to the network. In compatibility mode R5 attaches where Walksheds would,
+ *     except where two edges are equally near, between which Walksheds' choice cannot be predicted.
  *  2. Rounding. R5's router counts whole seconds and rounds each edge up; Walksheds does not round.
  *
  * So there are two kinds of test here.
@@ -80,6 +80,14 @@ public class WalkshedsRegressionTest {
      * reached by the other too. Nearer the limit, the cost allowance above can put a node on either side of it.
      */
     private static final double END_TO_END_REACH_SHARE = 0.85;
+
+    /**
+     * Walksheds answers whose costs the end-to-end tests do not compare, by what their file names contain. Latah's
+     * third point is nearest to a node where two crossings meet, so both are equally near. Which of the two Walksheds
+     * attaches to cannot be predicted, and here it is not the one R5 takes (the first in the dataset), which puts
+     * R5's start 8 m along a crossing instead of at the node. The exact tests still cover these answers.
+     */
+    private static final List<String> START_ON_TIED_EDGES = List.of("latah/walksheds/poi_3_");
 
     private static final Map<String, Fixture> FIXTURES = new LinkedHashMap<>();
 
@@ -222,6 +230,8 @@ public class WalkshedsRegressionTest {
                 continue;
             }
             if (!"Ok".equals(code)) continue;
+            String path = fixture.dir.getName() + "/" + name;
+            if (START_ON_TIED_EDGES.stream().anyMatch(path::contains)) continue;
 
             Map<Integer, Double> expected = new HashMap<>(), actual = new HashMap<>();
             for (JsonNode n : walksheds.get("node_costs")) {

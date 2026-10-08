@@ -20,6 +20,9 @@ Config (environment variables):
   LAUNCH_CMD         R5 launch template; {dir}, {port} and {id} are substituted
   LAUNCH_CWD         directory to run LAUNCH_CMD in (your R5 checkout)
   JAVA_TOOL_OPTIONS  passed through to R5 (GC flags)
+  WALKSHEDS_COMPAT   passed through to R5; set to 0 to attach points to the network at the nearest
+                     place on the ground instead of where Walksheds would (osw-tools/DIFFERENCES.md);
+                     default on
   DATA_DIR           default ./datasets
   IDLE_TIMEOUT       seconds, default 1800
   MAX_INSTANCES      default 8; least-recently-used idle instance is stopped

@@ -167,8 +167,16 @@ public class StreetRouter implements Cloneable {
     TIntObjectMultimap<State> bestStatesAtEdge = new TIntObjectHashMultimap<>();
 
     // TODO verify closure capture in java - this is referencing the variable quantityToMinimize, not its value at initialization right?
+    // States equal in whole seconds are ordered by the fraction of a second they carry: see State.carrySeconds.
     Comparator<State> stateComparator =
-          Comparator.comparingInt(s0 -> (s0.getRoutingVariable(quantityToMinimize) + s0.heuristic));
+          Comparator.<State>comparingInt(s0 -> (s0.getRoutingVariable(quantityToMinimize) + s0.heuristic))
+                  .thenComparingDouble(s0 -> s0.carrySeconds);
+
+    /** @return whether s0 is strictly better than s1 by the quantity minimized, down to fractions of a second. */
+    private boolean better (State s0, State s1) {
+        int v0 = s0.getRoutingVariable(quantityToMinimize), v1 = s1.getRoutingVariable(quantityToMinimize);
+        return v0 < v1 || (v0 == v1 && s0.carrySeconds < s1.carrySeconds);
+    }
 
     /// The queue is prioritized by the specified optimization objective variable.
     PriorityQueue<State> queue = new PriorityQueue<>(stateComparator);
@@ -393,16 +401,16 @@ public class StreetRouter implements Cloneable {
         boolean startState0Passable = true, startState1Passable = true;
         if (pedestrianCosts != null) {
             // Cost the partial edges from the origin to each end vertex using the pedestrian cost profile.
-            int t1 = PedestrianCostTimeCalculator.roundPartialSeconds(
-                    pedestrianCosts.partialSeconds(edge, profileRequest.walkSpeed, split.distance1_mm / 1000d));
-            startState1Passable = t1 >= 0;
-            startState1.durationSeconds = t1 + offStreetTime;
+            double t1 = pedestrianCosts.partialSeconds(edge, profileRequest.walkSpeed, split.distance1_mm / 1000d);
+            startState1Passable = !Double.isNaN(t1);
+            startState1.durationSeconds = offStreetTime;
+            if (startState1Passable) startState1.incrementTimeExact(t1);
             startState1.distance = split.distance1_mm + split.distanceToEdge_mm;
             edge.advance();
-            int t0 = PedestrianCostTimeCalculator.roundPartialSeconds(
-                    pedestrianCosts.partialSeconds(edge, profileRequest.walkSpeed, split.distance0_mm / 1000d));
-            startState0Passable = t0 >= 0;
-            startState0.durationSeconds = t0 + offStreetTime;
+            double t0 = pedestrianCosts.partialSeconds(edge, profileRequest.walkSpeed, split.distance0_mm / 1000d);
+            startState0Passable = !Double.isNaN(t0);
+            startState0.durationSeconds = offStreetTime;
+            if (startState0Passable) startState0.incrementTimeExact(t0);
             startState0.distance = split.distance0_mm + split.distanceToEdge_mm;
         } else {
             // Uses weight based on distance from end vertices, and speed on edge which depends on transport mode
@@ -748,7 +756,7 @@ public class StreetRouter implements Cloneable {
         if (s1.turnRestrictions == null && s2.turnRestrictions == null) {
             // The simple case where neither state has turn restrictions.
             // Note this is <= rather than < because we want an existing state with the same weight to beat a new one.
-            return s1.getRoutingVariable(quantityToMinimize) <= s2.getRoutingVariable(quantityToMinimize);
+            return !better(s2, s1);
         }
         // At least one of the states has turn restrictions.
         // Generally, a state with turn restrictions cannot dominate another state and cannot be dominated.
@@ -782,8 +790,7 @@ public class StreetRouter implements Cloneable {
             return null; // Unreachable
         }
         // Get the lowest weight, even if it's in the middle of a turn restriction.
-        return states.stream().reduce((s0, s1) ->
-                s0.getRoutingVariable(quantityToMinimize) < s1.getRoutingVariable(quantityToMinimize) ? s0 : s1).get();
+        return states.stream().reduce((s0, s1) -> better(s1, s0) ? s1 : s0).get();
     }
 
     /**
@@ -822,7 +829,7 @@ public class StreetRouter implements Cloneable {
             if (state == null) continue;
 
             if (ret == null) ret = state;
-            else if (ret.getRoutingVariable(quantityToMinimize) > state.getRoutingVariable(quantityToMinimize)) {
+            else if (better(state, ret)) {
                 ret = state;
             }
         }
@@ -833,6 +840,15 @@ public class StreetRouter implements Cloneable {
     public int getTravelTimeToVertex (int vertexIndex) {
         State state = getStateAtVertex(vertexIndex);
         return state != null ? state.durationSeconds : Integer.MAX_VALUE;
+    }
+
+    /**
+     * As {@link #getTravelTimeToVertex(int)}, but in fractions of a second where the search kept them (see
+     * State.carrySeconds), and positive infinity for a vertex that was not reached.
+     */
+    public double getExactTravelTimeToVertex (int vertexIndex) {
+        State state = getStateAtVertex(vertexIndex);
+        return state != null ? state.getExactDurationSeconds() : Double.POSITIVE_INFINITY;
     }
 
     /**
@@ -868,11 +884,11 @@ public class StreetRouter implements Cloneable {
 
                         // figure out the turn cost
                         int turnCost = this.timeCalculator.turnTimeSeconds(s.backEdge, split.edge, s.streetMode);
-                        int traversalCost = partialTraversalSeconds(e, split.distance0_mm, s.streetMode);
-                        if (traversalCost < 0) return null; // Impassable under the pedestrian cost profile.
+                        // Impassable under the pedestrian cost profile.
+                        if (!incrementPartialTraversal(ret, e, split.distance0_mm, s.streetMode)) return null;
 
                         // TODO length of perpendicular
-                        ret.incrementTimeInSeconds(turnCost + traversalCost);
+                        ret.incrementTimeInSeconds(turnCost);
                         ret.distance += split.distance0_mm;
 
                         return ret;
@@ -899,31 +915,33 @@ public class StreetRouter implements Cloneable {
                 State ret = new State(-1, split.edge + 1, state);
                 ret.streetMode = state.streetMode;
                 int turnCost = this.timeCalculator.turnTimeSeconds(state.backEdge, split.edge + 1, state.streetMode);
-                int traversalCost = partialTraversalSeconds(e, split.distance1_mm, state.streetMode);
-                if (traversalCost < 0) continue; // Impassable under the pedestrian cost profile.
+                // Impassable under the pedestrian cost profile.
+                if (!incrementPartialTraversal(ret, e, split.distance1_mm, state.streetMode)) continue;
                 ret.distance += split.distance1_mm;
                 // TODO length of perpendicular
-                ret.incrementTimeInSeconds(turnCost + traversalCost);
+                ret.incrementTimeInSeconds(turnCost);
                 candidateStates.add(ret);
             }
         }
 
-        return candidateStates.stream()
-                .reduce((s0, s1) -> s0.getRoutingVariable(quantityToMinimize) < s1.getRoutingVariable(quantityToMinimize) ? s0 : s1)
-                .orElse(null);
+        return candidateStates.stream().reduce((s0, s1) -> better(s1, s0) ? s1 : s0).orElse(null);
     }
 
     /**
-     * Time to traverse part of the edge at the cursor, from its start to a destination split point. Uses the
-     * pedestrian cost profile for walking when the request has one (returning a negative value if impassable).
+     * Add to a state the time to traverse part of the edge at the cursor, from its start to a destination split
+     * point. Uses the pedestrian cost profile for walking when the request has one, keeping fractions of a second.
+     * @return false if the edge is impassable under that profile, in which case the state is left as it was.
      */
-    private int partialTraversalSeconds (EdgeStore.Edge edge, int distance_mm, StreetMode mode) {
+    private boolean incrementPartialTraversal (State state, EdgeStore.Edge edge, int distance_mm, StreetMode mode) {
         PedestrianCostTable pedestrianCosts = (mode == StreetMode.WALK) ? getPedestrianCostTable() : null;
         if (pedestrianCosts != null) {
-            return PedestrianCostTimeCalculator.roundPartialSeconds(
-                    pedestrianCosts.partialSeconds(edge, profileRequest.walkSpeed, distance_mm / 1000d));
+            double seconds = pedestrianCosts.partialSeconds(edge, profileRequest.walkSpeed, distance_mm / 1000d);
+            if (Double.isNaN(seconds)) return false;
+            state.incrementTimeExact(seconds);
+        } else {
+            state.incrementTimeInSeconds(Math.round(distance_mm / 1000d / edge.calculateSpeed(profileRequest, mode)));
         }
-        return (int) Math.round(distance_mm / 1000d / edge.calculateSpeed(profileRequest, mode));
+        return true;
     }
 
     public Split getDestinationSplit() {
@@ -961,6 +979,13 @@ public class StreetRouter implements Cloneable {
         /// Cumulative duration of the trip so far, across all legs.
         protected int durationSeconds;
 
+        /// The part of the cumulative duration that durationSeconds leaves out, from just above -1 to 0. Where times
+        /// are known in fractions of a second (walking with a pedestrian cost profile), durationSeconds is the exact
+        /// cumulative duration rounded up, and this is the exact duration minus it. So rounding happens once per
+        /// path, not once per edge, and states that are equal in whole seconds can still be told apart. It is zero
+        /// wherever times are only known in whole seconds.
+        protected double carrySeconds;
+
         /// Cumulative duration of all legs before this one (the durationSeconds of the leg seed
         /// state this state descends from). Storing this requires less math and is less prone to
         /// errors and omissions than incrementing both the current leg duration and total duration.
@@ -991,6 +1016,7 @@ public class StreetRouter implements Cloneable {
             this.backState = backState;
             this.distance = backState.distance;
             this.durationSeconds = backState.durationSeconds;
+            this.carrySeconds = backState.carrySeconds;
             this.durationBeforeLegSeconds = backState.durationBeforeLegSeconds;
             this.idx = backState.idx+1;
         }
@@ -1087,8 +1113,29 @@ public class StreetRouter implements Cloneable {
 
         }
 
+        /**
+         * Add a time known in fractions of a second. durationSeconds becomes the exact cumulative duration rounded
+         * up, and the difference is carried forward: see carrySeconds.
+         */
+        public void incrementTimeExact (double seconds) {
+            if (!(seconds >= 0)) {
+                LOG.warn("A state's time is being incremented by a negative or undefined amount.");
+                return;
+            }
+            double exact = durationSeconds + carrySeconds + seconds;
+            // Sums of fractions land a hair above whole numbers, which should not count as another second.
+            int rounded = (int) Math.ceil(exact - 1e-9);
+            carrySeconds = Math.min(0, exact - rounded);
+            durationSeconds = rounded;
+        }
+
         public int getDurationSeconds() {
             return durationSeconds;
+        }
+
+        /** The cumulative duration in fractions of a second, where the search kept them: see carrySeconds. */
+        public double getExactDurationSeconds () {
+            return durationSeconds + carrySeconds;
         }
 
         /// Duration of the current leg alone, e.g. for enforcing per-leg travel time limits.

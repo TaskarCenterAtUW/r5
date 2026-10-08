@@ -209,8 +209,13 @@ class PedestrianCostProfile:
                     raise ValueError("Missing required setting amount")
             if "inclineSpeed" in layer:
                 incline = layer["inclineSpeed"]
-                _check_keys(incline, {"maxUphill", "maxDownhill", "ideal", "divisor", "minLengthForLimits"},
-                            "inclineSpeed")
+                _check_keys(incline, {"maxUphill", "maxDownhill", "ideal", "divisor", "minLengthForLimits",
+                                      "direction"}, "inclineSpeed")
+                # "mapped": an edge's incline is taken as mapped whichever way it is walked. Nothing to do here for
+                # that: Unweaver hands this function the incline it stored for the directed edge, so build the
+                # Unweaver project without `--changes-sign incline` and both directions carry the mapped value.
+                if incline.get("direction", "travel") not in ("travel", "mapped"):
+                    raise ValueError("inclineSpeed direction must be travel or mapped, was %s" % incline["direction"])
                 for required in ("maxUphill", "maxDownhill"):
                     if incline.get(required) is None:
                         raise ValueError("Missing required setting " + required)

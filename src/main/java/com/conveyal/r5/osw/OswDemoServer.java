@@ -345,6 +345,19 @@ public class OswDemoServer {
         /** Whether the walk gets to the end of its stretch, and whether that stretch is the whole edge. */
         boolean complete, wholeEdge;
         LineString geometry;
+        /** The stretch being walked, as fractions of the edge's geometry, its length, and the time to walk all of it. */
+        double from, to, stretchMeters, stretchSeconds;
+        /** How much of the stretch is walked, from 0 to 1. */
+        double reached;
+        LineString edgeGeometry;
+
+        /** Cut the walk back to the given share of its stretch. */
+        void shortenTo (double share) {
+            reached = share;
+            t1 = t0 + stretchSeconds * share;
+            meters = stretchMeters * share;
+            geometry = new GroundLine(edgeGeometry).extract(from, from + (to - from) * share);
+        }
     }
 
     /**
@@ -371,6 +384,12 @@ public class OswDemoServer {
         p.meters = meters * reached;
         LineString line = edge.getGeometry();
         p.geometry = (whole && p.complete) ? line : new GroundLine(line).extract(from, from + (to - from) * reached);
+        p.from = from;
+        p.to = to;
+        p.stretchMeters = meters;
+        p.stretchSeconds = seconds;
+        p.reached = reached;
+        p.edgeGeometry = line;
         return p;
     }
 
@@ -412,17 +431,28 @@ public class OswDemoServer {
     /**
      * Choose how to show one stretch of an edge given the walks along it in each direction: one complete walk covers
      * it (the earlier, if both are complete); otherwise keep what each direction reaches.
+     *
+     * Two walks that both stop short can still pass one another, so that between them they cover the stretch. Each
+     * is then cut back to the place where they meet, which is where both arrive at the same time, so that no ground
+     * is returned twice. Every part of the stretch is then shown by the walk that reaches it first.
      */
-    private static void addBest (List<Piece> pieces, Piece a, Piece b) {
+    static void addBest (List<Piece> pieces, Piece a, Piece b) {
         Piece best = null;
         if (a != null && a.complete) best = a;
         if (b != null && b.complete && (best == null || b.t1 < best.t1)) best = b;
         if (best != null) {
             pieces.add(best);
-        } else {
-            if (a != null) pieces.add(a);
-            if (b != null) pieces.add(b);
+            return;
         }
+        if (a != null && b != null && a.reached + b.reached > 1) {
+            // The share of the stretch, in a's direction, at which the two arrive together.
+            double meet = (b.t0 + b.stretchSeconds - a.t0) / (a.stretchSeconds + b.stretchSeconds);
+            meet = Math.max(1 - b.reached, Math.min(a.reached, meet));
+            a.shortenTo(meet);
+            b.shortenTo(1 - meet);
+        }
+        if (a != null) pieces.add(a);
+        if (b != null) pieces.add(b);
     }
 
     /**

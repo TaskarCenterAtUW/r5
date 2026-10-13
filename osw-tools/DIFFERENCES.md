@@ -37,10 +37,14 @@ closely: 3,431 routes (85.8%) have costs within 1% of each other, and R5's are a
 These figures are with R5's compatibility mode on, which is the default: see
 [Attaching a point to the network](#attaching-a-point-to-the-network). With it off the two agree on 91.0% of routes.
 
-These numbers come from one dataset with no road edges. What streets cost has been checked separately, against
-one Walksheds walkshed on a dataset with roads (see [Tests](#tests)): at a street avoidance of 0.5, R5's costs
-match. Fan mode on a dataset with roads, and the rules listed under [Not implemented](#not-implemented), have not
-been compared with Walksheds output.
+These numbers are for routes, on one dataset with no road edges. What streets cost has been checked separately,
+against one Walksheds walkshed on a dataset with roads (see [Tests](#tests)): at a street avoidance of 0.5, R5's
+costs match. The rules listed under [Not implemented](#not-implemented) have not been compared with Walksheds
+output.
+
+Walksheds differ in two further ways, which change the totals a report takes from them: see
+[Differences in a walkshed](#differences-in-a-walkshed). Because of them, walkshed totals from the two servers
+should not be compared with one another.
 
 ## Where the differences come from
 
@@ -170,6 +174,67 @@ m where the two points are 31 m apart. Most of the routes whose lengths differ b
 Where two OSW edges join the same pair of nodes, Unweaver keeps one of them and R5 keeps both. On 5 routes (0.1%)
 R5 uses the one Walksheds does not have.
 
+## Differences in a walkshed
+
+A walkshed is every part of the network that can be reached within the cost limit. The two engines agree closely on
+what each node costs to reach: on Newcastle with roads, at 9,755 nodes both reach in fan mode, R5's cost differs
+from Walksheds' by a median of 0.13 against a limit of 600. They differ in which edges they return between those
+nodes, in two ways. Both are left as they are, and both change the totals the TDEI quality reports take from a
+walkshed.
+
+The figures are from the quality reports' comparison of the two production servers in October 2026, on Newcastle
+with roads (TDEI dataset `770f769f-62c3-4e10-9c6c-e1394ddf33d0`, 39 points) and on dataset
+`486da1e5-9b1c-4192-a9ac-ccc31696f39e` (31 points).
+
+### R5 returns both of two edges between the same nodes
+
+Where two edges join the same pair of nodes, Walksheds returns one of them and never both, in any profile. R5
+returns every edge that can be walked within the limit, so it returns both. This is the walkshed side of
+[Two edges between the same two nodes](#two-edges-between-the-same-two-nodes).
+
+Newcastle with roads has 55 such pairs: 47 of road edges, such as a parking aisle that leaves a road and rejoins it
+at the next node, and 8 of footway edges 1 to 4 m long. Which of a pair Walksheds keeps is not the shorter one; it
+is usually the one listed later in the dataset.
+
+| Profile | Road length, Walksheds | Road length, R5 | Difference | Edges only R5 returns |
+|---|---|---|---|---|
+| Fan Out | 44,246 m | 45,824 m | +3.6% | 21, 1,507 m |
+| Sidewalks Whenever Possible | 12,335 m | 13,018 m | +5.5% | 9, 608 m |
+| The two profiles that do not use roads | 0 | 0 | none | none |
+
+So on a dataset with roads, expect R5's road length to be about 4 to 6% higher in the two profiles that walk on
+roads, by an amount that depends on how many such pairs the dataset has. Footpath length differs by under 0.2%.
+So it is not true that R5 never returns an edge Walksheds does not: these edges are returned only by R5.
+
+One consequence for a single point: where the nearest edge to a point is one that Walksheds does not keep,
+Walksheds starts from the next nearest. One of the 39 Newcastle points starts 49.5 m away on Walksheds for this
+reason.
+
+*Decision.* R5 is left as it is. The edges are in the dataset and can be walked within the limit.
+
+### An edge reached from both ends but not walked across
+
+A walkshed can reach both ends of an edge without enough of the limit left, at either end, to walk all of it.
+Walking in from each end, the two walks may pass one another, so that between them every part of the edge is
+reached.
+
+- **Walksheds** returns the whole edge as one feature, the same as an edge that was walked from end to end.
+- **R5** returns two parts, one from each end, which stop where they meet.
+
+What this changes in a report:
+
+| | Effect on R5's figure | Measured |
+|---|---|---|
+| Crossings fully traversed | Slightly lower. A crossing in two parts is not counted, since no walk within the limit gets from one kerb to the other | Newcastle: 392 → 391 in fan mode, 196 → 194, 209 → 207. `486da1e5`: 394 → 393 |
+| Number of paths | Slightly higher: two features where Walksheds has one | `486da1e5`: 1,343 → 1,345, from one sidewalk and one crossing |
+| Length | None | |
+
+R5 used to let each part run on until the limit ran out, so the two overlapped, and the overlap was counted twice
+in anything that added up the walkshed's length: about 70 m of road in each road profile on Newcastle. The parts
+are now cut where the two walks meet, which is where both arrive at the same time.
+
+*Decision.* R5 keeps the two parts. They say how far each approach got, which one whole edge does not.
+
 ## Not implemented
 
 - **Reverse walksheds.** A request with `reverse` on gets a 501. In the production cost function, `reverseWalkshed`
@@ -204,6 +269,10 @@ here as rules, because each is something R5 does only because Walksheds does.
 | Crossings and incline | Crossings are subject to the incline limits as well as their 30 s delay. |
 | Fan mode | With `fanOut` on, streets cost the same as footways whatever the street avoidance. |
 
+One more was closed that Walksheds does not do in the same way: an edge reached from both ends was returned as two
+overlapping parts, and is now returned as two that meet. See
+[An edge reached from both ends but not walked across](#an-edge-reached-from-both-ends-but-not-walked-across).
+
 **A note on incline.** Walksheds uses the incline's sign as mapped, not its size. So the uphill limit applies to
 edges mapped as rising and the downhill limit to edges mapped as falling, whichever way they are walked, and two
 equal slopes drawn in opposite directions cost slightly differently, because the speed function peaks at a gentle
@@ -213,12 +282,13 @@ downhill. With the equal or near-equal limits the quality reports use, the effec
 
 `WalkshedsRegressionTest` (in `src/test/java/com/conveyal/r5/osw/`) runs with the rest of R5's tests and fails if R5
 moves away from Walksheds in a way this file does not account for. It compares R5 with answers saved from the
-Walksheds service, in two ways:
+Walksheds service, and checks its walksheds:
 
 - **Exactly, with the accepted differences taken out.** The network is costed with R5's profile, attributes and
   connections, by a search of its own that starts from Walksheds' own costs at the ends of the edge its origin is on.
   That removes the attachment point from the comparison, since some points still attach to a different edge. What
   is left must match Walksheds to within a second at every node, and R5 must reach exactly the nodes Walksheds does.
+- **Parts of one edge.** Over a range of cost limits, no walkshed may return more of an edge than its length.
 - **End to end.** R5's API is asked what Walksheds was asked. The answers must agree on whether there is a
   walkshed or route at all, on each node's cost to within 1 s plus 0.5%, and on which nodes are reached, apart from
   those within 1% of the cost limit.

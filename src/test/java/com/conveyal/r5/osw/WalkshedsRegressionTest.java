@@ -146,6 +146,51 @@ public class WalkshedsRegressionTest {
         assertEndToEnd(FIXTURES.get("newcastle"));
     }
 
+    /**
+     * A walkshed can reach an edge from both ends without the budget to walk all of it from either. The two parts
+     * returned must not cover any of the edge twice, or its length is counted twice in whatever sums the walkshed.
+     */
+    @Test
+    public void partsOfOneEdgeDoNotOverlap () throws Exception {
+        int edgesInTwoParts = 0;
+        List<String> problems = new ArrayList<>();
+        for (Fixture fixture : FIXTURES.values()) {
+            Map<String, Double> edgeLength = new HashMap<>();
+            for (File file : new File(fixture.dir, "dataset").listFiles((dir, name) -> name.endsWith(".edges.geojson"))) {
+                for (JsonNode edge : MAPPER.readTree(file).get("features")) {
+                    JsonNode properties = edge.get("properties");
+                    edgeLength.put(properties.get("_id").asText(), properties.path("length").asDouble(Double.NaN));
+                }
+            }
+            for (JsonNode c : fixture.cases.get("walksheds")) {
+                for (int maxCost = 60; maxCost <= 600; maxCost += 20) {
+                    JsonNode r5 = get(fixture, "/api/v1/routing/reachable_tree/custom.json?lon=" + c.get("lon").asDouble()
+                            + "&lat=" + c.get("lat").asDouble() + "&max_cost=" + maxCost + profileQuery(c));
+                    if (!"Ok".equals(r5.path("code").asText())) continue;
+                    Map<String, Double> returned = new HashMap<>();
+                    Map<String, Integer> parts = new HashMap<>();
+                    for (JsonNode edge : r5.get("edges").get("features")) {
+                        String id = edge.get("properties").get("_id").asText();
+                        returned.merge(id, edge.get("properties").get("length").asDouble(), Double::sum);
+                        parts.merge(id, 1, Integer::sum);
+                    }
+                    for (Map.Entry<String, Double> e : returned.entrySet()) {
+                        if (parts.get(e.getKey()) > 1) edgesInTwoParts++;
+                        double whole = edgeLength.getOrDefault(e.getKey(), Double.NaN);
+                        // The dataset's lengths and R5's differ by a fraction of a percent.
+                        if (e.getValue() > whole * 1.01 + 0.05) {
+                            problems.add(String.format("%s at max_cost %d: edge %s is %.2f m long, and %.2f m of it "
+                                    + "is returned", c.get("response").asText(), maxCost, e.getKey(), whole, e.getValue()));
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue(edgesInTwoParts > 0, "No walkshed returned an edge in two parts, so nothing was checked.");
+        assertTrue(problems.isEmpty(), problems.size() + " edges returned for more than their length:\n"
+                + String.join("\n", problems));
+    }
+
     // ------------------------------------------------------------------------------------------------ Exact
 
     private static void assertExact (Fixture fixture) throws Exception {
